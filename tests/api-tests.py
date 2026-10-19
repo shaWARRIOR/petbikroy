@@ -42,7 +42,7 @@ MEMBER_PHONE_PREFIX = '019000'
 MEMBER_PASSWORD = 'pet-test-password-1'
 MEMBER_PASSWORD_2 = 'pet-test-password-2'
 
-# A seeded account, so the suite proves the demo credentials that SETUP.md
+# A seeded account, so the suite proves the demo credentials that README.md
 # hands out actually work.
 DEMO_PHONE = os.environ.get('PB_DEMO_PHONE', '01311000000')
 DEMO_PASSWORD = os.environ.get('PB_DEMO_PASSWORD', 'petbikroy123')

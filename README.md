@@ -22,8 +22,9 @@ npm run admin:new -- --email admin@local.test --password 'correct-horse-battery'
 npm run dev            # http://localhost:8788
 ```
 
-**Put it online** — see **[SETUP.md](SETUP.md)** for a nine-command walkthrough.
-The short version:
+**Put it online** — nine commands, of which only `wrangler login` is
+interactive. `wrangler.toml` has to carry the real D1 id before the deploy,
+because Cloudflare takes the bindings from it:
 
 ```bash
 npx wrangler login
@@ -34,7 +35,30 @@ npx wrangler d1 execute petbikroy --remote --file=db/seed.sql
 node tools/create-admin.mjs --remote --email you@example.com
 npx wrangler pages project create petbikroy --production-branch main
 npx wrangler pages deploy
+curl https://petbikroy.pages.dev/api/stats     # sanity check: prints JSON
 ```
+
+### Upgrading a database that already exists
+
+`db/schema.sql` only creates tables that are missing, so it cannot change a
+database that an older version of it created — for example one seeded before
+listings belonged to member accounts. Wipe and re-seed instead:
+
+```bash
+# Check which database you are about to wipe; the id must match wrangler.toml.
+npx wrangler d1 list
+npx wrangler d1 execute petbikroy --remote --command "SELECT COUNT(*) FROM ads"
+
+npx wrangler d1 execute petbikroy --remote --file=db/drop-all.sql
+npx wrangler d1 execute petbikroy --remote --file=db/schema.sql
+npx wrangler d1 execute petbikroy --remote --file=db/seed.sql
+node tools/create-admin.mjs --remote --email you@example.com
+```
+
+`db/drop-all.sql` deletes every table, admin accounts included, which is why
+the last command is not optional. Databases that were seeded by an older
+schema are exactly the case this exists for: the same six commands with
+`--local` are `npm run db:drop`, `db:schema` and `db:seed`.
 
 ### Demo accounts
 
@@ -252,9 +276,10 @@ Unknown `/api/*` paths return JSON, never the HTML 404 page — a
 - Ad **detail** responses are `no-store` because they vary by caller — the
   listing endpoint is publicly cacheable only because it omits private fields.
 
-Before you announce the site, see the security checklist in
-[SETUP.md](SETUP.md) — in particular, change the admin password you used during
-setup and consider putting `/admin` behind Cloudflare Access.
+Before you announce the site: change the admin password you used during setup,
+delete or re-password the seeded demo members (see
+[Demo accounts](#demo-accounts) above — their password is in this repository),
+and consider putting `/admin` behind Cloudflare Access.
 
 ---
 

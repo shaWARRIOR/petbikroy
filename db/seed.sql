@@ -149,7 +149,7 @@ INSERT OR IGNORE INTO areas (location_id, name, sort_order) VALUES ('mymensingh'
 --
 -- Every demo member signs in with their phone number and the shared
 -- password "petbikroy123". These are throwaway accounts for a
--- demo dataset — see SETUP.md before putting this on a public site.
+-- demo dataset — see README.md before putting this on a public site.
 --
 -- Rakib Hasan — 01311000000
 INSERT OR REPLACE INTO users (
@@ -157,7 +157,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-rakib-hasan', '01311000000', 'Rakib Hasan', 'rakib-hasan@petbikroy.test',
-  '80ec79b81dd4014a766e1e3a035f907f7d8a653e144e186fae76989f78e9f963', '8dcde72e100af73255be78b569440393', 25000,
+  'e8dab0f1860a171662872a1ea337eb0a94e35bb10a8ffa0a81cf0daa0c6339bd', 'fcf76b1a2bc7e87198931a23da145213', 25000,
   'Rakib Hasan — Dhanmondi based, listing on PetBikroy since 2023.', 'dhaka', 'Dhanmondi', 1, 1,
   '2023-04-11T00:00:00.000Z', '2023-04-11T00:00:00.000Z'
 );
@@ -168,7 +168,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-nusrat-jahan', '01511000137', 'Nusrat Jahan', 'nusrat-jahan@petbikroy.test',
-  'ef8f542d88edeb07125879a664b835859f5acfc0e8647cd88889a7788e44a67b', '25c5b68ab2966a587d267afd3e61bb2a', 25000,
+  '71b142dd52bd2e4da22ae4ec1209ef34dc8b184c0f3f2e05828f38a7afe64436', 'd71af6ef94c90cd880a5d31646e68160', 25000,
   'Nusrat Jahan — Gulshan based, listing on PetBikroy since 2022.', 'dhaka', 'Gulshan', 1, 1,
   '2022-09-02T00:00:00.000Z', '2022-09-02T00:00:00.000Z'
 );
@@ -179,7 +179,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-imran-chowdhury', '01611000274', 'Imran Chowdhury', 'imran-chowdhury@petbikroy.test',
-  'c4f870549341d116c5f65a0f1932796d98efbcae4dd9ca40099dcce9d906832a', 'cd2211938823897eeddceb3c06428503', 25000,
+  '060c27dca13f48616ea85ec8bc3dd024e91e2bb9abb33487e6696c679df9be4f', 'b31ed12f51eb5142303ff71e4fdacabf', 25000,
   'Imran Chowdhury — Agrabad based, listing on PetBikroy since 2024.', 'chattogram', 'Agrabad', 0, 1,
   '2024-01-20T00:00:00.000Z', '2024-01-20T00:00:00.000Z'
 );
@@ -190,7 +190,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-aqua-house-bd', '01711000411', 'Aqua House BD', 'aqua-house-bd@petbikroy.test',
-  '83fd8dcd645f5394de9e84b24b256fe6c0b2c110fa42ebf96c89715d9c8644aa', 'bfdd54b8abe8930a875e4fd863046217', 25000,
+  'd9e96d9096ca443703059f01e31676243c75db165d9b136d1e9f792ad8d9e90d', 'cb7f65e96046727aea76c90db48eaa2d', 25000,
   'Aqua House BD — Mirpur based, listing on PetBikroy since 2021.', 'dhaka', 'Mirpur', 1, 1,
   '2021-06-15T00:00:00.000Z', '2021-06-15T00:00:00.000Z'
 );
@@ -201,7 +201,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-k9-kennel-dhaka', '01811000548', 'K9 Kennel Dhaka', 'k9-kennel-dhaka@petbikroy.test',
-  '491ffcde3b159aa6a5052b9759d54f9bbfcbe2692665e6acc3b7ef7ecfa56082', '3c736099aa7f67192e957dc1a4a1d1cf', 25000,
+  'c429f8af5443c22625869b634963ed28cb3c6e5a822da861ebe401299978bb6f', '143263c751d9399bf93d851e605cdb45', 25000,
   'K9 Kennel Dhaka — Uttara based, listing on PetBikroy since 2020.', 'dhaka', 'Uttara', 1, 1,
   '2020-03-08T00:00:00.000Z', '2020-03-08T00:00:00.000Z'
 );
@@ -212,7 +212,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-ayesha-rahman', '01911000685', 'Ayesha Rahman', 'ayesha-rahman@petbikroy.test',
-  '2b5e122d820bc63ed5a93d05c86975da8e0299e68d6ff879a52bde76250a6eb1', '0547395bc6e56ac7f4b69fa5aa6baec8', 25000,
+  '4626cae4ad322210f815836d1a9b3f315029e63d51500cec5fb440c448d60bc0', '9443c77f4ae978e55acd7e8c79b9da80', 25000,
   'Ayesha Rahman — Bashundhara based, listing on PetBikroy since 2023.', 'dhaka', 'Bashundhara', 1, 1,
   '2023-11-30T00:00:00.000Z', '2023-11-30T00:00:00.000Z'
 );
@@ -223,7 +223,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-sylhet-pet-corner', '01311000822', 'Sylhet Pet Corner', 'sylhet-pet-corner@petbikroy.test',
-  '6154be208a866a8ae532dd5a294df9aafdca916ce5099a850e6ecd81e43b1afc', '6099bbe08e60fce371d11cbce6df3781', 25000,
+  '547d610b4ec653c6949f856c4a3343a1abf1aa62b7832e97eeaf898daa84d656', '78e594ada0ddd9183cc6250a4673ef23', 25000,
   'Sylhet Pet Corner — Zindabazar based, listing on PetBikroy since 2022.', 'sylhet', 'Zindabazar', 0, 1,
   '2022-02-18T00:00:00.000Z', '2022-02-18T00:00:00.000Z'
 );
@@ -234,7 +234,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-pet-bazar-bd', '01511000959', 'Pet Bazar BD', 'pet-bazar-bd@petbikroy.test',
-  'f49767a35d4a8bb950bc4c81a61ca45835a04560d5d24df2e4b16e0c713cd560', 'c913e6d69baa7edace0a2e82f4a31dd4', 25000,
+  '87fb5580688b4cd10e234a0ce45a73afbaf5d6f7666a3c6dcb1eedb6a659ff2d', '568c5a5b6b329617b5cc1e3663a2bd82', 25000,
   'Pet Bazar BD — Mohammadpur based, listing on PetBikroy since 2023.', 'dhaka', 'Mohammadpur', 1, 1,
   '2023-07-07T00:00:00.000Z', '2023-07-07T00:00:00.000Z'
 );
@@ -245,7 +245,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-dr-farhana-vet-care', '01611001096', 'Dr. Farhana Vet Care', 'dr-farhana-vet-care@petbikroy.test',
-  'cbb9d77bb0afbb88f192224616126c9369094bf5a9c2b2718c2e8f656acc340c', 'df4318956d175a047593c60368b0c539', 25000,
+  '86f969c97123e8aa84418769f032b8956180a75c1bd5586c91e28e320cf1ce79', '3e65d60dcae4b604bd07d0dcb4b2ef7c', 25000,
   'Dr. Farhana Vet Care — Banani based, listing on PetBikroy since 2021.', 'dhaka', 'Banani', 1, 1,
   '2021-01-12T00:00:00.000Z', '2021-01-12T00:00:00.000Z'
 );
@@ -256,7 +256,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-happy-tails-supplies', '01711001233', 'Happy Tails Supplies', 'happy-tails-supplies@petbikroy.test',
-  '1862b5220c884656b55fd364939fa5fbe89e4d490da8adb2dfdb40a4955bcdc4', 'd6df1372f39e42edda6a4d0e027a01a4', 25000,
+  'f9d96c802131712bff05dc7af0fe00549a6f3eccaa1990f463c06304244c857e', 'f7f1b49252d01ae157bce88f89065a04', 25000,
   'Happy Tails Supplies — Badda based, listing on PetBikroy since 2024.', 'dhaka', 'Badda', 1, 1,
   '2024-05-03T00:00:00.000Z', '2024-05-03T00:00:00.000Z'
 );
@@ -267,7 +267,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-chattogram-canine', '01811001370', 'Chattogram Canine', 'chattogram-canine@petbikroy.test',
-  '5fde0c0b0bf962cb3c628e49272e17431c56d881637510a007885823e509a48d', '6a7cdfab65b9fe5ad899a21520e0aab7', 25000,
+  '118ce6355afe71353b1c2a85493c23082a00a6c621cce79268f5fd3ce67158ce', '4c835d1998790ace276fdbe4ca9cc533', 25000,
   'Chattogram Canine — Khulshi based, listing on PetBikroy since 2020.', 'chattogram', 'Khulshi', 1, 1,
   '2020-08-19T00:00:00.000Z', '2020-08-19T00:00:00.000Z'
 );
@@ -278,7 +278,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-dhaka-stray-rescue', '01911001507', 'Dhaka Stray Rescue', 'dhaka-stray-rescue@petbikroy.test',
-  'b9837d0984e69e110b7386ee12e5813d62accf04e570af2506cf9382523b3252', '1e8ed8c6cdff09521180c21cc8d4faf8', 25000,
+  'cc1e50683b3749f469eaa0cf672e0f97629a799a217ef4f3580781643c8223c6', 'f7496764a1574a67f862d05d21f50768', 25000,
   'Dhaka Stray Rescue — Old Dhaka based, listing on PetBikroy since 2022.', 'dhaka', 'Old Dhaka', 1, 1,
   '2022-12-01T00:00:00.000Z', '2022-12-01T00:00:00.000Z'
 );
@@ -289,7 +289,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-nadeem-aviary', '01311001644', 'Nadeem Aviary', 'nadeem-aviary@petbikroy.test',
-  '98d4ab346400dfce5b9f9fb0cad5f43d0ec387fdff3a67bfdcad56f8ae36b912', 'f51b71833c07935512a7298d24a3679e', 25000,
+  '9d323472dead7523a0320312c765e96b32508e49eeed54ce48ef41bc5b773135', 'e3eb8949623126954692082f43f503a2', 25000,
   'Nadeem Aviary — Shaheb Bazar based, listing on PetBikroy since 2023.', 'rajshahi', 'Shaheb Bazar', 0, 1,
   '2023-03-14T00:00:00.000Z', '2023-03-14T00:00:00.000Z'
 );
@@ -300,7 +300,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-khulna-pet-store', '01511001781', 'Khulna Pet Store', 'khulna-pet-store@petbikroy.test',
-  'e1c6e5ca6d40892227941bb2f6ab90801f3680c7a71e210b1526753672ef664f', '4ebcf73219a6354f6ee31ffd8ab560a2', 25000,
+  '04a1939a7e56fa431cff8dbb83b7d49f19e33eda03d668783e49d154b6fd6241', 'a90995659d5b0b6a811ceb3f0ad465d2', 25000,
   'Khulna Pet Store — Sonadanga based, listing on PetBikroy since 2023.', 'khulna', 'Sonadanga', 0, 1,
   '2023-10-05T00:00:00.000Z', '2023-10-05T00:00:00.000Z'
 );
@@ -311,7 +311,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-pawfect-grooming', '01611001918', 'Pawfect Grooming', 'pawfect-grooming@petbikroy.test',
-  '02d500769c6aa721e5c332af08b461a7cfe1110d9d92f8fc99ba147d695ed66b', '7efe34c39ebe1b455a119d1bdcd81feb', 25000,
+  'd8208948df4864625957afed40a5610210c37954ab76bcee80eb6c095608efc4', 'fe6107128aa2c7686f1e2aeea21025f0', 25000,
   'Pawfect Grooming — Gulshan based, listing on PetBikroy since 2024.', 'dhaka', 'Gulshan', 1, 1,
   '2024-02-11T00:00:00.000Z', '2024-02-11T00:00:00.000Z'
 );
@@ -322,7 +322,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-frozen-paws-husky', '01711002055', 'Frozen Paws Husky', 'frozen-paws-husky@petbikroy.test',
-  '357e1001d13a6c9d65784c4826fd9e39fa92b3ad8f8ed438da7616f3222a102e', '9aef1dce4278378845865f034a7563ab', 25000,
+  'f17d5e72708e20e2cb7d3052e4abcd67310b60d2ed4b3c8a94f1ecc805b51c01', '9fba79cbcaa3d28596c1d81d4ef0141c', 25000,
   'Frozen Paws Husky — Gazipur based, listing on PetBikroy since 2021.', 'dhaka', 'Gazipur', 1, 1,
   '2021-09-27T00:00:00.000Z', '2021-09-27T00:00:00.000Z'
 );
@@ -333,7 +333,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-rangpur-agro-farm', '01811002192', 'Rangpur Agro Farm', 'rangpur-agro-farm@petbikroy.test',
-  '0faad48855d789370f353fa1b15ccaf76e481e79211906ab430b78bf18cd89d0', 'd2600730f2ce58aee8425c96b2847d3e', 25000,
+  '64135ce8c6221885173af86cb27865d8631570a8ed34ea94b4bc2e41341293e3', 'f3afd00263b4115f87e00465bc66ac12', 25000,
   'Rangpur Agro Farm — Dhap based, listing on PetBikroy since 2022.', 'rangpur', 'Dhap', 1, 1,
   '2022-05-22T00:00:00.000Z', '2022-05-22T00:00:00.000Z'
 );
@@ -344,7 +344,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-royal-feline-bd', '01911002329', 'Royal Feline BD', 'royal-feline-bd@petbikroy.test',
-  'a0c86952cd532d00e3e08b89975515c4f49154fc39c1622faea005657ba3cac9', 'a5411b3e929295f68ec921ce63938e3b', 25000,
+  '2508f1f3d3a54eb1531edee27b46200490a2581c653415a64e22a19fbdadca88', 'f1bc8aa605fdbcc92f20840e7d305509', 25000,
   'Royal Feline BD — Gulshan based, listing on PetBikroy since 2019.', 'dhaka', 'Gulshan', 1, 1,
   '2019-11-16T00:00:00.000Z', '2019-11-16T00:00:00.000Z'
 );
@@ -355,7 +355,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-exotic-pets-dhaka', '01311002466', 'Exotic Pets Dhaka', 'exotic-pets-dhaka@petbikroy.test',
-  '6c341e37bbf96a687e5e1cf58399ac7f59ba10c47292580c1cf4d46e39d57564', '273e9b334d5e32c51ca25f155539b1cd', 25000,
+  'ebcf42de4170e1a2b8617965c5c5978fc039aedc716ddc229a68c9784f9fb2d0', '513cd3ecf74c0e6ad440e700ad74e116', 25000,
   'Exotic Pets Dhaka — Motijheel based, listing on PetBikroy since 2023.', 'dhaka', 'Motijheel', 1, 1,
   '2023-01-09T00:00:00.000Z', '2023-01-09T00:00:00.000Z'
 );
@@ -366,7 +366,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-little-paws-bd', '01511002603', 'Little Paws BD', 'little-paws-bd@petbikroy.test',
-  '3534bcd50880797f5198a22a2591fce8bc4e543d0fd4ae1adbc06b14c2e87ecb', 'c92bf0aa7d46866e8c77f7ff778eb603', 25000,
+  '9c3846badb7451761833c2557f3e38315a25d4f1183231f6455bb328299b2921', 'bce25ea2cfdc55e1fbc7c880820a65a4', 25000,
   'Little Paws BD — Bashundhara based, listing on PetBikroy since 2024.', 'dhaka', 'Bashundhara', 0, 1,
   '2024-08-19T00:00:00.000Z', '2024-08-19T00:00:00.000Z'
 );
@@ -377,7 +377,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-barishal-pet-house', '01611002740', 'Barishal Pet House', 'barishal-pet-house@petbikroy.test',
-  'f99692f7561858dc026a98036ba3cb2a4c25734e37deead8dd99c932f9dad66f', '7e0e01abab302225f94af74d59c0cdc8', 25000,
+  '45b104b741cb365d998a95acf3f4a3198aaed7b592d2314a1c76bd6b45bb8891', 'c7855311eaf40ab98166f9333999221b', 25000,
   'Barishal Pet House — Band Road based, listing on PetBikroy since 2023.', 'barishal', 'Band Road', 1, 1,
   '2023-06-02T00:00:00.000Z', '2023-06-02T00:00:00.000Z'
 );
@@ -388,7 +388,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-mymensingh-aviary', '01711002877', 'Mymensingh Aviary', 'mymensingh-aviary@petbikroy.test',
-  'c0dcdf6d26c3301fd09fd0e7adec3247dd6ea9a9e46d004206b3c3fa2d59fa4e', '33162712f375ba84fcafc05d7b86157f', 25000,
+  'e6f4f91c281920f9a4b6db97fe4439e0cb4ffb00b7047790328e7304c8e2701a', '93e11e08e53affbce3d34cd5ed2e2e00', 25000,
   'Mymensingh Aviary — Ganginarpar based, listing on PetBikroy since 2024.', 'mymensingh', 'Ganginarpar', 0, 1,
   '2024-03-27T00:00:00.000Z', '2024-03-27T00:00:00.000Z'
 );
@@ -399,7 +399,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-rangpur-k9-school', '01811003014', 'Rangpur K9 School', 'rangpur-k9-school@petbikroy.test',
-  '2ae2acb4afa9fc4d0faea38955b4b16b614a67f1435868909f4735317c884e7a', 'b56909385ad695590ae44ddba96b3a27', 25000,
+  'e2e00887f5a226ddc0a7d250175cd6d8ec7470f0932900856f9ebdeceff6b68d', 'd140a966905012fd6e56a7929f858715', 25000,
   'Rangpur K9 School — Jahaj Company based, listing on PetBikroy since 2023.', 'rangpur', 'Jahaj Company', 1, 1,
   '2023-12-14T00:00:00.000Z', '2023-12-14T00:00:00.000Z'
 );
@@ -410,7 +410,7 @@ INSERT OR REPLACE INTO users (
   bio, location_id, area, verified, is_active, created_at, updated_at
 ) VALUES (
   'u-seed-barishal-agro-hatchery', '01911003151', 'Barishal Agro Hatchery', 'barishal-agro-hatchery@petbikroy.test',
-  'a825b6e58457f963691501e6f45237f01fd298b48d1ab967c0936dc6d47dc99c', 'ae3591bac48c725bf94200bab03537f1', 25000,
+  '5fad18cd337151cbdfc676918d26194e4576af41ccc331b5e0720b3354ff55e7', '909a14af085add860d14671fefab37d8', 25000,
   'Barishal Agro Hatchery — Rupatali based, listing on PetBikroy since 2022.', 'barishal', 'Rupatali', 1, 1,
   '2022-11-11T00:00:00.000Z', '2022-11-11T00:00:00.000Z'
 );
@@ -1070,12 +1070,12 @@ Price is per duckling, minimum order 10. FCR and feeding guidance provided with 
 
 -- ---------------------------------------------------------------- settings --
 
-INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('site_name', 'PetBikroy', '2026-10-19T06:42:45.091Z');
-INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('auto_approve', '1', '2026-10-19T06:42:45.091Z');
-INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('listings_per_page', '12', '2026-10-19T06:42:45.091Z');
-INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('posting_enabled', '1', '2026-10-19T06:42:45.091Z');
-INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('post_limit', '10', '2026-10-19T06:42:45.091Z');
-INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('signup_limit', '10', '2026-10-19T06:42:45.091Z');
-INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('contact_email', 'hello@petbikroy.test', '2026-10-19T06:42:45.091Z');
+INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('site_name', 'PetBikroy', '2026-10-19T07:35:08.947Z');
+INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('auto_approve', '1', '2026-10-19T07:35:08.948Z');
+INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('listings_per_page', '12', '2026-10-19T07:35:08.948Z');
+INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('posting_enabled', '1', '2026-10-19T07:35:08.948Z');
+INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('post_limit', '10', '2026-10-19T07:35:08.948Z');
+INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('signup_limit', '10', '2026-10-19T07:35:08.948Z');
+INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('contact_email', 'hello@petbikroy.test', '2026-10-19T07:35:08.948Z');
 
 -- Done.

@@ -4,9 +4,9 @@
 # This file is the *source of truth* for the Pages project: once a deployment
 # carries it, the same fields turn read-only in the Cloudflare dashboard.
 #
-# The two IDs below are placeholders. `npm run db:create` (or the commands in
-# SETUP.md) prints real ones for you to paste in. Deploying with the
-# placeholder database_id fails with "could not find database".
+# `npm run db:create` (or the commands in README.md) prints the real id for you
+# to paste in below. Deploying while database_id is still the placeholder
+# 00000000-… fails with "could not find database".
 # ============================================================================
 
 "$schema" = "./node_modules/wrangler/config-schema.json"

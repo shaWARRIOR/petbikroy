@@ -28,7 +28,7 @@ const OUT = join(ROOT, 'db/seed.sql');
 /**
  * Every demo member shares this password, so the catalogue can be browsed
  * as a seller without generating and filing 24 secrets. It is documented in
- * SETUP.md and must never be used on a real deployment.
+ * README.md and must never be used on a real deployment.
  */
 const DEMO_PASSWORD = 'petbikroy123';
 
@@ -136,7 +136,7 @@ out('-- --------------------------------------------------------------- members 
 out('--');
 out('-- Every demo member signs in with their phone number and the shared');
 out(`-- password "${DEMO_PASSWORD}". These are throwaway accounts for a`);
-out('-- demo dataset — see SETUP.md before putting this on a public site.');
+out('-- demo dataset — see README.md before putting this on a public site.');
 out('--');
 for (const m of members) {
   const { hash, salt, iterations } = credentials.get(m.id);
