@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My ads — PetBikroy</title>
+<meta name="description" content="Manage the pet ads you have posted on PetBikroy — mark as sold, edit or delete.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<noscript>
+  <div style="max-width:1200px;margin:16px auto;padding:14px 18px;border:1px solid #f6dfb8;background:#fff8ec;border-radius:10px;font:14px/1.5 system-ui,sans-serif;color:#7c5a14">
+    <strong>JavaScript is turned off.</strong> PetBikroy renders its listings in your
+    browser, so search, filters and posting an ad need JavaScript enabled.
+  </div>
+</noscript>
+
+<main class="page" id="main">
+  <div class="wrap">
+    <div id="crumbs"></div>
+
+    <div class="row gap-12" style="flex-wrap:wrap;margin:8px 0 16px">
+      <h1 style="margin:0">My ads</h1>
+      <span class="tag" id="adsCount">0</span>
+      <a class="btn btn-accent push" href="post.html">+ Post a new ad</a>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button data-tab="all" class="is-active">All mine</button>
+      <button data-tab="active">Live</button>
+      <button data-tab="sold">Sold</button>
+      <button data-tab="review">Needs attention</button>
+    </div>
+
+    <div id="tableHost"></div>
+  </div>
+</main>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/my-ads.js"></script>
+</body>
+</html>

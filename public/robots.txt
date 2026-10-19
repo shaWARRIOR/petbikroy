@@ -1,0 +1,20 @@
+# PetBikroy
+#
+# Listings are meant to be found, so everything public is crawlable.
+# The exceptions are the admin panel, the API and the two pages that only make
+# sense for the browser that owns the data (saved ads and "my ads" are built
+# from localStorage, so a crawler would only ever see empty states).
+#
+# These rules are advisory. The admin panel and the API also send an
+# X-Robots-Tag header, which is the part a crawler actually obeys.
+
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /admin/
+Disallow: /api/
+Disallow: /my-ads
+Disallow: /my-ads.html
+Disallow: /favorites
+Disallow: /favorites.html

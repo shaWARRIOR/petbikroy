@@ -1,0 +1,14 @@
+# dependencies
+node_modules/
+
+# wrangler's local state (.wrangler/state holds the local D1 + R2 data)
+.wrangler/
+.dev.vars
+
+# test artifacts
+tests/.svgs.txt
+tests/.api-results.json
+
+# OS noise
+.DS_Store
+Thumbs.db

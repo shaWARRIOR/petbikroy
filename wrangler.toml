@@ -1,0 +1,44 @@
+# ============================================================================
+# PetBikroy — Cloudflare Pages configuration
+#
+# This file is the *source of truth* for the Pages project: once a deployment
+# carries it, the same fields turn read-only in the Cloudflare dashboard.
+#
+# The two IDs below are placeholders. `npm run db:create` (or the commands in
+# SETUP.md) prints real ones for you to paste in. Deploying with the
+# placeholder database_id fails with "could not find database".
+# ============================================================================
+
+"$schema" = "./node_modules/wrangler/config-schema.json"
+
+name = "petbikroy"
+compatibility_date = "2026-10-01"
+
+# Static site lives in public/ so that wrangler.toml, db/, functions/ and
+# tests/ are never downloadable — Pages serves exactly this directory.
+pages_build_output_dir = "public"
+
+# --------------------------------------------------------------- bindings --
+#
+# Careful: vars, d1_databases and r2_buckets are *non-inheritable*. If you
+# override any one of them inside [env.preview] or [env.production], you must
+# override all three, or `wrangler pages deploy` refuses to validate. Local
+# development reads these top-level bindings directly, so there is nothing to
+# duplicate here.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "petbikroy"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "petbikroy-images"
+
+# ---------------------------------------------------------- optional vars --
+
+[vars]
+# Comma-separated origins allowed to call the API from a different site, e.g.
+# "https://petbikroy.pages.dev,https://petbikroy.com". Leave empty when the
+# front end and the API are served from this same project — which they are.
+ALLOWED_ORIGINS = ""

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — PetBikroy</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/admin.css">
+</head>
+<body>
+
+<!-- ===================================================== signed-out screen -->
+<section class="login-screen" id="loginScreen" hidden>
+  <form class="login-card" id="loginForm" autocomplete="on">
+    <div class="login-brand"><span class="paw">🐾</span> PetBikroy</div>
+    <p class="sub">Sign in to the admin panel.</p>
+
+    <div class="field">
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" name="email" autocomplete="username"
+             required autofocus>
+    </div>
+
+    <div class="field">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" name="password"
+             autocomplete="current-password" required>
+    </div>
+
+    <div class="field err hide" id="loginError" role="alert"></div>
+
+    <button class="btn btn-lg btn-block" type="submit" id="loginBtn">Sign in</button>
+
+    <p class="small muted" style="margin:16px 0 0;text-align:center">
+      No account yet? Create one with
+      <br><code class="mono">node tools/create-admin.mjs --email you@example.com</code>
+    </p>
+  </form>
+</section>
+
+<!-- ========================================================= signed-in app -->
+<div class="admin" id="app" hidden>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="paw">🐾</span> PetBikroy
+      <span class="env" id="envBadge">admin</span>
+    </div>
+
+    <nav class="nav" id="nav">
+      <div class="nav-head">Moderation</div>
+      <a href="#/overview"   data-view="overview"><span class="ico">▦</span> Overview</a>
+      <a href="#/listings"   data-view="listings"><span class="ico">📋</span> Listings</a>
+      <a href="#/moderation" data-view="moderation">
+        <span class="ico">🛡️</span> Needs review
+        <span class="pill hide" id="pendingPill">0</span>
+      </a>
+      <a href="#/reports"    data-view="reports">
+        <span class="ico">🚩</span> Reports
+        <span class="pill hide" id="reportPill">0</span>
+      </a>
+
+      <div class="nav-head">Configuration</div>
+      <a href="#/settings"   data-view="settings"><span class="ico">⚙️</span> Settings</a>
+      <a href="#/team"       data-view="team" data-role="admin"><span class="ico">👥</span> Team</a>
+      <a href="../index.html" target="_blank" rel="noopener">
+        <span class="ico">↗</span> View site
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="who">
+        <span class="avatar" id="whoAvatar">?</span>
+        <span style="min-width:0">
+          <span class="name" id="whoName">—</span>
+          <span class="role" id="whoRole">—</span>
+        </span>
+      </div>
+      <button class="btn btn-ghost btn-sm btn-block" id="logoutBtn"
+              style="color:#cdd7e0">Sign out</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="btn btn-ghost btn-sm menu-btn" id="menuBtn" aria-label="Menu">☰</button>
+      <h1 id="pageTitle">Overview</h1>
+      <span class="crumb" id="pageCrumb"></span>
+      <button class="btn btn-outline btn-sm" id="refreshBtn">↻ Refresh</button>
+    </header>
+
+    <div class="view" id="view"></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="assets/admin.js"></script>
+</body>
+</html>

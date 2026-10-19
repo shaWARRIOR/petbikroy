@@ -1,0 +1,31 @@
+{
+  "name": "petbikroy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pet classifieds marketplace — static front end plus a Cloudflare Pages Functions API backed by D1 and R2.",
+  "scripts": {
+    "dev": "wrangler pages dev",
+    "deploy": "wrangler pages deploy",
+    "check": "wrangler pages functions build --outdir=.wrangler/functions-build",
+    "seed:build": "node tools/generate-seed.mjs",
+    "admin:new": "node tools/create-admin.mjs",
+    "db:create": "wrangler d1 create petbikroy",
+    "r2:create": "wrangler r2 bucket create petbikroy-images",
+    "db:schema": "wrangler d1 execute petbikroy --local --file=db/schema.sql",
+    "db:seed": "wrangler d1 execute petbikroy --local --file=db/seed.sql",
+    "db:schema:remote": "wrangler d1 execute petbikroy --remote --file=db/schema.sql",
+    "db:seed:remote": "wrangler d1 execute petbikroy --remote --file=db/seed.sql",
+    "test": "bash tests/run-tests.sh",
+    "test:api": "bash tests/run-api-tests.sh",
+    "test:admin": "node tests/admin-panel.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "wrangler": "^4.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261012.1": true
+  }
+}

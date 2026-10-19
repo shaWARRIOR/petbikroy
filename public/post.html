@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Post your ad — PetBikroy</title>
+<meta name="description" content="Post a free pet ad on PetBikroy. Add photos, set your price and reach buyers across Bangladesh.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<noscript>
+  <div style="max-width:1200px;margin:16px auto;padding:14px 18px;border:1px solid #f6dfb8;background:#fff8ec;border-radius:10px;font:14px/1.5 system-ui,sans-serif;color:#7c5a14">
+    <strong>JavaScript is turned off.</strong> PetBikroy renders its listings in your
+    browser, so search, filters and posting an ad need JavaScript enabled.
+  </div>
+</noscript>
+
+<main class="page" id="main">
+  <div class="wrap wizard">
+
+    <div id="crumbs"></div>
+
+    <div class="row gap-12" style="margin:6px 0 6px">
+      <h1 style="margin:0">Post your ad</h1>
+      <span class="tag tag-green">Free</span>
+    </div>
+    <p class="muted">Five quick steps. Your ad goes live immediately.</p>
+
+    <!-- Steps indicator -->
+    <div class="steps" id="steps" role="list"></div>
+
+    <form id="adForm" novalidate>
+      <div class="card card-pad">
+
+        <!-- ========================= Step 1: category ========================= -->
+        <section class="wizard-panel is-active" data-step="1" aria-labelledby="s1">
+          <h2 id="s1">What are you listing?</h2>
+          <p class="muted small">Choose the closest category — it decides which details we ask for next.</p>
+
+          <div class="field">
+            <span class="label req">Category</span>
+            <div class="radio-cards" id="catCards"></div>
+            <span class="err-msg" id="err-cat">Please choose a category.</span>
+          </div>
+
+          <div class="field" id="subField" style="display:none">
+            <label class="req" for="fSub">Breed / type</label>
+            <select class="select" id="fSub"></select>
+            <span class="err-msg" id="err-sub">Please choose a breed or type.</span>
+          </div>
+
+          <div class="field" id="listingTypeField">
+            <span class="label req">Ad type</span>
+            <div class="radio-cards">
+              <label class="radio-card">
+                <input type="radio" name="kind" value="sale" checked>
+                <span class="rc-icon">💰</span>
+                <span class="rc-body"><span class="rc-title">For sale</span>
+                <span class="rc-sub">You are asking for a price</span></span>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="kind" value="adoption">
+                <span class="rc-icon">🏡</span>
+                <span class="rc-body"><span class="rc-title">For adoption</span>
+                <span class="rc-sub">Free to a good home</span></span>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="kind" value="service">
+                <span class="rc-icon">🩺</span>
+                <span class="rc-body"><span class="rc-title">Service or item</span>
+                <span class="rc-sub">Grooming, food, cages and so on</span></span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================== Step 2: details ========================== -->
+        <section class="wizard-panel" data-step="2" aria-labelledby="s2">
+          <h2 id="s2">Tell buyers about it</h2>
+          <p class="muted small">Clear titles and honest details sell fastest.</p>
+
+          <div class="field">
+            <label class="req" for="fTitle">Ad title</label>
+            <input class="input" id="fTitle" maxlength="140"
+              placeholder="e.g. 2 months old Labrador puppy, vaccinated">
+            <div class="hint"><span id="titleCount">0</span>/140 characters — mention breed, age and health.</div>
+            <span class="err-msg" id="err-title">Please write a title of at least 10 characters.</span>
+          </div>
+
+          <div class="field">
+            <span class="label">Photos</span>
+            <div class="dropzone" id="dropzone" tabindex="0" role="button"
+              aria-label="Add photos">
+              <div class="emoji">📷</div>
+              <strong>Drop photos here or click to browse</strong>
+              <div class="small muted mt-8">Up to 6 photos. JPG or PNG. The first one becomes the cover.</div>
+            </div>
+            <input type="file" id="fPhotos" accept="image/*" multiple class="hide">
+            <div class="photo-grid" id="photoGrid"></div>
+            <div class="hint" id="photoHint">No photos yet — we will use a category illustration instead.</div>
+          </div>
+
+          <div class="field growable" id="priceField">
+            <label class="req" for="fPrice">Price (৳)</label>
+            <input class="input" id="fPrice" type="number" min="0" step="100" placeholder="25000">
+            <label class="check mt-8"><input type="checkbox" id="fNegotiable" checked> Price is negotiable</label>
+            <span class="err-msg" id="err-price">Please enter a price, or choose “For adoption”.</span>
+          </div>
+
+          <div class="field">
+            <label for="fDesc">Description</label>
+            <textarea class="textarea" id="fDesc" maxlength="5000"
+              placeholder="Health, vaccinations, temperament, what's included, why you're selling…"></textarea>
+            <div class="hint"><span id="descCount">0</span> characters. Descriptions over 100 characters get
+              noticeably more replies.</div>
+            <span class="err-msg" id="err-desc">Please add at least 30 characters of description.</span>
+          </div>
+
+          <div id="animalFields">
+            <div class="field-row">
+              <div class="field">
+                <label for="fAge">Age</label>
+                <input class="input" id="fAge" placeholder="e.g. 3 months" maxlength="40">
+              </div>
+              <div class="field">
+                <label for="fGender">Gender</label>
+                <select class="select" id="fGender">
+                  <option value="">Not specified</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="fCond">Condition</label>
+                <select class="select" id="fCond">
+                  <option value="New">New</option>
+                  <option value="Used">Used</option>
+                  <option value="Refurbished">Refurbished</option>
+                </select>
+              </div>
+              <div class="field">
+                <span class="label">Health</span>
+                <label class="check" style="padding:9px 0">
+                  <input type="checkbox" id="fVax"> Vaccinated &amp; dewormed
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ========================= Step 3: location ========================= -->
+        <section class="wizard-panel" data-step="3" aria-labelledby="s3">
+          <h2 id="s3">Where is it?</h2>
+          <p class="muted small">Buyers filter by division and area, so this matters a lot.</p>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="req" for="fLoc">Division</label>
+              <select class="select" id="fLocPick"></select>
+              <span class="err-msg" id="err-loc">Please choose a division.</span>
+            </div>
+            <div class="field">
+              <label class="req" for="fArea">Area</label>
+              <select class="select" id="fArea"><option value="">Choose division first</option></select>
+              <span class="err-msg" id="err-area">Please choose an area.</span>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="req" for="fName">Your name</label>
+              <input class="input" id="fName" placeholder="e.g. Rakib Hasan" autocomplete="name">
+              <span class="err-msg" id="err-name">Please enter your name.</span>
+            </div>
+            <div class="field">
+              <label class="req" for="fPhone">Mobile number</label>
+              <input class="input" id="fPhone" placeholder="01XXXXXXXXX" inputmode="tel" autocomplete="tel">
+              <span class="err-msg" id="err-phone">Enter a valid Bangladeshi mobile number (11 digits starting 01).</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="fEmail">Email <span class="muted">(optional — never shown publicly)</span></label>
+            <input class="input" id="fEmail" type="email" placeholder="you@example.com" autocomplete="email">
+            <span class="err-msg" id="err-email">That email does not look right.</span>
+          </div>
+
+          <div class="safety">
+            <h4>Please don't share in the description</h4>
+            <ul>
+              <li>Your full address or building name</li>
+              <li>Any advance-payment requests — they break our rules</li>
+              <li>Other people's phone numbers or photos</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- ========================== Step 4: review ========================== -->
+        <section class="wizard-panel" data-step="4" aria-labelledby="s4">
+          <h2 id="s4">Review and publish</h2>
+          <p class="muted small">Check everything once — you can edit or delete the ad later from “My ads”.</p>
+
+          <div id="previewCard" class="card card-pad" style="background:#fbfcfc"></div>
+
+          <div class="mt-16">
+            <label class="check">
+              <input type="checkbox" id="fTerms">
+              <span>I confirm the information is accurate and I have the right to rehome this
+                animal. I agree to the <a href="#">terms of use</a> and the animal-welfare rules.</span>
+            </label>
+            <span class="err-msg" id="err-terms">Please accept the terms to continue.</span>
+          </div>
+        </section>
+
+        <!-- ====================== Step 5: success ====================== -->
+        <section class="wizard-panel" data-step="5" aria-labelledby="s5">
+          <div class="empty" style="border-style:solid;border-color:#cfe9da;background:var(--green-light)">
+            <div class="emoji">🎉</div>
+            <h3 id="s5">Your ad is live!</h3>
+            <p id="s5Body">It is already visible in search results and in “My ads”. Share the link with
+              friends to get replies faster.</p>
+            <div class="row gap-8" style="justify-content:center;flex-wrap:wrap">
+              <a class="btn btn-primary" id="viewAdBtn" href="#">View my ad</a>
+              <a class="btn btn-outline" href="listings.html">Browse all ads</a>
+              <button class="btn btn-ghost" type="button" id="postAnother">Post another ad</button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <div class="wizard-actions">
+        <button class="btn btn-outline" type="button" id="btnBack" disabled>‹ Back</button>
+        <button class="btn btn-primary push" type="button" id="btnNext">Continue ›</button>
+      </div>
+    </form>
+
+  </div>
+</main>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/wizard.js"></script>
+<script src="assets/js/post.js"></script>
+</body>
+</html>

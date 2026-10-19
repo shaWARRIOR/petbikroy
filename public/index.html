@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PetBikroy — Buy &amp; sell pets in Bangladesh</title>
+<meta name="description" content="Bangladesh's friendliest pet marketplace. Buy and sell dogs, cats, birds, fish, small pets, food and accessories. Post a free ad in minutes.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<noscript>
+  <div style="max-width:1200px;margin:16px auto;padding:14px 18px;border:1px solid #f6dfb8;background:#fff8ec;border-radius:10px;font:14px/1.5 system-ui,sans-serif;color:#7c5a14">
+    <strong>JavaScript is turned off.</strong> PetBikroy renders its listings in your
+    browser, so search, filters and posting an ad need JavaScript enabled.
+  </div>
+</noscript>
+
+<main class="page" id="main">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap">
+      <h1>Find your next best friend 🐾</h1>
+      <p class="lead">Buy and sell dogs, cats, birds, fish and everything they need —
+        from verified sellers in every division of Bangladesh.</p>
+
+      <form class="search-bar" id="heroSearch" action="listings.html" method="get" role="search">
+        <label class="sr-only" for="heroCat">Category</label>
+        <select name="cat" id="heroCat"><option value="">All categories</option></select>
+        <label class="sr-only" for="heroQ">Search</label>
+        <input type="search" name="q" id="heroQ" placeholder="Try “Labrador puppy”, “Persian cat”, “aquarium”…" autocomplete="off">
+        <button type="submit">Search</button>
+      </form>
+
+      <div class="hero-stats">
+        <div><b id="statAds">0</b> live ads</div>
+        <div><b id="statCats">0</b> categories</div>
+        <div><b id="statLocs">0</b> divisions covered</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap">
+
+    <!-- Popular searches -->
+    <div class="row gap-8" style="flex-wrap:wrap;margin-top:18px">
+      <span class="small strong muted">Popular:</span>
+      <span id="popular" class="row gap-8" style="flex-wrap:wrap"></span>
+    </div>
+
+    <!-- Categories -->
+    <section class="section">
+      <div class="section-head">
+        <h2>Browse by category</h2>
+        <a class="see-all" href="listings.html">See all ads →</a>
+      </div>
+      <div class="cat-grid" id="catGrid"></div>
+    </section>
+
+    <!-- Promoted -->
+    <section class="section">
+      <div class="section-head">
+        <h2>⭐ Promoted ads</h2>
+        <a class="see-all" href="listings.html?sort=recent">See more →</a>
+      </div>
+      <div class="grid-listings" id="featuredGrid"></div>
+    </section>
+
+    <!-- Fresh listings -->
+    <section class="section">
+      <div class="section-head">
+        <h2>Fresh listings</h2>
+        <a class="see-all" href="listings.html?sort=recent">See all →</a>
+      </div>
+      <div class="grid-listings" id="newGrid"></div>
+      <div class="row" style="justify-content:center;margin-top:20px">
+        <a class="btn btn-outline btn-lg" href="listings.html">Load more ads</a>
+      </div>
+    </section>
+
+    <!-- Browse by location -->
+    <section class="section">
+      <div class="section-head">
+        <h2>Browse by location</h2>
+      </div>
+      <div class="cat-grid" id="locGrid"></div>
+    </section>
+
+    <!-- Post CTA -->
+    <section class="section">
+      <div class="card card-pad" style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;background:linear-gradient(135deg,#e8f6ee,#ffffff);border-color:#cfe9da">
+        <div style="font-size:44px">📸</div>
+        <div style="flex:1;min-width:240px">
+          <h2 style="margin-bottom:4px">Have a pet to rehome?</h2>
+          <p class="muted mb-0">Post a free ad with photos and reach thousands of buyers today.
+            No commission, no listing fee.</p>
+        </div>
+        <a class="btn btn-accent btn-lg" href="post.html">Post your ad — it's free</a>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="section">
+      <div class="section-head"><h2>How PetBikroy works</h2></div>
+      <div class="cat-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+        <div class="card card-pad">
+          <div style="font-size:30px;margin-bottom:8px">🔍</div>
+          <h3>1. Search &amp; filter</h3>
+          <p class="small muted mb-0">Narrow down by breed, age, gender, price and location to
+            find exactly the companion you want.</p>
+        </div>
+        <div class="card card-pad">
+          <div style="font-size:30px;margin-bottom:8px">💬</div>
+          <h3>2. Contact the seller</h3>
+          <p class="small muted mb-0">Call or message directly. Ask for a video, health records
+            and the parents' details before you pay.</p>
+        </div>
+        <div class="card card-pad">
+          <div style="font-size:30px;margin-bottom:8px">🏡</div>
+          <h3>3. Meet &amp; take home</h3>
+          <p class="small muted mb-0">Always meet in a public place, check the animal's health,
+            and never pay in advance.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/home.js"></script>
+</body>
+</html>
