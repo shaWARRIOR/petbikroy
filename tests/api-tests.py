@@ -14,11 +14,16 @@ D1 queries, real PBKDF2 hashing, real cookies, real R2 uploads.
 The suite signs in as an admin, so that account must exist:
 
     node tools/create-admin.mjs --email admin@petbikroy.test --password 'correct-horse-battery'
+
+It also registers throwaway member accounts. Their numbers all start with
+019000, which no seeded or real account uses, so `./tests/run-api-tests.sh`
+can clear a crashed run's leftovers.
 """
 
 import http.cookiejar
 import json
 import os
+import random
 import struct
 import sys
 import urllib.error
@@ -30,6 +35,18 @@ import zlib
 BASE = sys.argv[1].rstrip('/') if len(sys.argv) > 1 else 'http://127.0.0.1:8788'
 ADMIN_EMAIL = os.environ.get('PB_ADMIN_EMAIL', 'admin@petbikroy.test')
 ADMIN_PASSWORD = os.environ.get('PB_ADMIN_PASSWORD', 'correct-horse-battery')
+
+# Members the suite registers. The phone prefix is deliberately one no seed
+# data uses, so tests can be cleaned up by prefix.
+MEMBER_PHONE_PREFIX = '019000'
+MEMBER_PASSWORD = 'pet-test-password-1'
+MEMBER_PASSWORD_2 = 'pet-test-password-2'
+
+# A seeded account, so the suite proves the demo credentials that SETUP.md
+# hands out actually work.
+DEMO_PHONE = os.environ.get('PB_DEMO_PHONE', '01311000000')
+DEMO_PASSWORD = os.environ.get('PB_DEMO_PASSWORD', 'petbikroy123')
+DEMO_ID = 'u-seed-rakib-hasan'
 
 C_GREEN, C_RED, C_DIM, C_BOLD, C_OFF = (
     '\033[32m', '\033[31m', '\033[2m', '\033[1m', '\033[0m')
@@ -241,6 +258,24 @@ def valid_ad(**overrides):
     return ad
 
 
+def new_phone():
+    """A valid Bangladeshi number in the suite's reserved range.
+
+    Format is 01[3-9] followed by eight digits, and the 019000 prefix keeps
+    test accounts distinguishable from seeded ones.
+    """
+    return MEMBER_PHONE_PREFIX + f'{random.randrange(10 ** 5):05d}'
+
+
+def sign_up(client, name='Test Seller', phone=None, password=MEMBER_PASSWORD, **extra):
+    """Registers a member. Returns (response, phone) so the caller can sign in again."""
+    phone = phone or new_phone()
+    body = {'name': name, 'phone': phone, 'password': password,
+            'confirm': password}
+    body.update(extra)
+    return client.post('/api/auth/register', body), phone
+
+
 # ----------------------------------------------------------------------- tests
 
 def test_public_read(api, t):
@@ -357,70 +392,295 @@ def test_public_read(api, t):
     t.eq(r.status, 404, 'an unknown ad id returns 404')
 
 
-def test_create_and_own(api, t):
-    t.section('publishing an ad')
+def test_accounts(t):
+    """Member accounts: registration, sign-in, profile and password.
 
-    r = api.post('/api/ads', valid_ad())
+    Returns a context dict for the later sections, or None if the account
+    could not be created at all.
+    """
+    anon = Api(BASE)
+
+    t.section('accounts: registration')
+
+    r = anon.get('/api/auth/session')
+    t.eq(r.status, 200, 'the session probe answers when signed out')
+    t.eq(r.json.get('user'), None, 'the session probe reports nobody')
+
+    r = anon.post('/api/ads', valid_ad())
+    t.eq(r.status, 401, 'posting without an account is refused')
+
+    r = anon.get('/api/me/ads')
+    t.eq(r.status, 401, 'reading my ads without an account is refused')
+
+    r = anon.post('/api/auth/register', {
+        'name': 'Test Seller', 'phone': '12345', 'password': MEMBER_PASSWORD})
+    t.eq(r.status, 400, 'an invalid phone number is refused')
+    t.truthy('phone' in r.json.get('details', {}), 'the error names the phone field')
+
+    r = anon.post('/api/auth/register', {
+        'name': 'T', 'phone': new_phone(), 'password': MEMBER_PASSWORD})
+    t.eq(r.status, 400, 'a one-character name is refused')
+    t.truthy('name' in r.json.get('details', {}), 'the error names the name field')
+
+    r = anon.post('/api/auth/register', {
+        'name': 'Test Seller', 'phone': new_phone(), 'password': 'short'})
+    t.eq(r.status, 400, 'a short password is refused')
+    t.truthy('password' in r.json.get('details', {}), 'the error names the password field')
+
+    r = anon.post('/api/auth/register', {
+        'name': 'Test Seller', 'phone': new_phone(),
+        'password': MEMBER_PASSWORD, 'confirm': 'something-else'})
+    t.eq(r.status, 400, 'mismatched passwords are refused')
+    t.truthy('confirm' in r.json.get('details', {}), 'the error names the confirmation field')
+
+    r = anon.post('/api/auth/register', {
+        'name': 'Test Seller', 'phone': new_phone(),
+        'password': MEMBER_PASSWORD, 'email': 'not-an-email'})
+    t.eq(r.status, 400, 'a malformed email is refused')
+
+    r = anon.post('/api/auth/register', {
+        'name': 'Test Seller', 'phone': new_phone(),
+        'password': MEMBER_PASSWORD, 'locationId': 'atlantis'})
+    t.eq(r.status, 400, 'an unknown division is refused')
+
+    r = anon.post('/api/auth/register', {
+        'name': 'Test Seller', 'phone': new_phone(),
+        'password': MEMBER_PASSWORD, 'locationId': 'dhaka', 'area': 'Nowhere-at-all'})
+    t.eq(r.status, 400, 'an area outside the chosen division is refused')
+
+    member = Api(BASE)
+    r, phone = sign_up(member, name='Rakib Test Seller', email='seller2@example.com',
+                       locationId='dhaka', area='Dhanmondi')
+    if r.status != 201:
+        t.ok(False, 'could not register a test member', f'got {r.status}: {r.data}')
+        return None
+
+    t.eq(r.status, 201, 'a valid registration creates the account')
+    me = r.json.get('user', {})
+    t.truthy(me.get('id'), 'the new account has an id')
+    t.eq(me.get('phone'), phone, 'the phone number is the login identifier')
+    t.eq(me.get('name'), 'Rakib Test Seller', 'the name is stored')
+    t.eq(me.get('verified'), False, 'a brand new account is not verified')
+    t.truthy('password_hash' not in me and 'password_salt' not in me,
+             'password material never leaves the database')
+
+    cookie = r.header('set-cookie') or ''
+    t.truthy('pb_user=' in cookie, 'registration signs the member straight in')
+    t.truthy('HttpOnly' in cookie, 'the member cookie is HttpOnly')
+    t.truthy('Secure' in cookie, 'the member cookie is Secure')
+    t.truthy('SameSite=Strict' in cookie, 'the member cookie is SameSite=Strict')
+
+    r = member.get('/api/auth/session')
+    t.eq(r.status, 200, 'the session probe answers once signed in')
+    t.eq(r.json['user']['id'], me['id'], 'the new session is live immediately')
+    t.eq(r.json['user']['area'], 'Dhanmondi', 'the profile area is stored')
+
+    r = Api(BASE).post('/api/auth/register', {
+        'name': 'Impostor', 'phone': phone, 'password': MEMBER_PASSWORD})
+    t.eq(r.status, 409, 'a duplicate phone number is refused')
+
+    t.section('accounts: signing in and out')
+
+    fresh = Api(BASE)
+    r = fresh.post('/api/auth/login', {'phone': phone, 'password': 'the-wrong-password'})
+    t.eq(r.status, 401, 'a wrong password is refused')
+
+    r = fresh.post('/api/auth/login', {
+        'phone': MEMBER_PHONE_PREFIX + '99999', 'password': MEMBER_PASSWORD})
+    t.eq(r.status, 401, 'an unknown phone number is refused')
+
+    r = fresh.post('/api/auth/login', {'phone': phone, 'password': MEMBER_PASSWORD})
+    t.eq(r.status, 200, 'a correct password signs in')
+    t.truthy('pb_user=' in (r.header('set-cookie') or ''),
+             'signing in sets the member cookie')
+
+    r = fresh.get('/api/auth/session')
+    t.eq(r.json['user']['phone'], phone, 'the session persists across requests')
+
+    r = fresh.delete('/api/auth/session')
+    t.eq(r.status, 200, 'signing out works')
+    cleared = r.header('set-cookie') or ''
+    t.truthy('pb_user=' in cleared and 'Max-Age=0' in cleared,
+             'signing out expires the cookie')
+
+    r = fresh.get('/api/auth/session')
+    t.eq(r.json.get('user'), None, 'the session is gone after signing out')
+
+    r = fresh.get('/api/ads')
+    t.eq(r.status, 200, 'browsing keeps working while signed out')
+
+    t.section('accounts: profile')
+
+    r = member.patch('/api/auth/session', {'name': 'X'})
+    t.eq(r.status, 400, 'a one-character name is refused on the profile too')
+    t.truthy('name' in r.json.get('details', {}), 'the profile error names the field')
+
+    r = member.patch('/api/auth/session', {
+        'name': 'Rakib Test Seller', 'email': 'seller2@example.com',
+        'bio': 'We rehome rescued cats across Dhaka.',
+        'locationId': 'dhaka', 'area': 'Dhanmondi'})
+    t.eq(r.status, 200, 'a valid profile edit is accepted')
+    t.eq(r.json['user']['bio'], 'We rehome rescued cats across Dhaka.', 'the bio is stored')
+
+    r = member.get('/api/auth/session')
+    t.eq(r.json['user']['bio'], 'We rehome rescued cats across Dhaka.',
+         'the profile edit persisted')
+
+    r = member.patch('/api/auth/session', {
+        'name': 'Rakib Test Seller', 'locationId': 'dhaka', 'area': 'Nowhere-at-all'})
+    t.eq(r.status, 400, 'the profile area is checked against the division')
+
+    t.section('accounts: changing a password')
+
+    r = member.put('/api/auth/password', {
+        'currentPassword': 'not-the-password', 'newPassword': MEMBER_PASSWORD_2})
+    t.eq(r.status, 401, 'a wrong current password is refused')
+
+    r = member.put('/api/auth/password', {
+        'currentPassword': MEMBER_PASSWORD, 'newPassword': MEMBER_PASSWORD})
+    t.eq(r.status, 400, 'reusing the current password is refused')
+
+    r = member.put('/api/auth/password', {
+        'currentPassword': MEMBER_PASSWORD, 'newPassword': 'short'})
+    t.eq(r.status, 400, 'a too-short new password is refused')
+
+    r = member.put('/api/auth/password', {
+        'currentPassword': MEMBER_PASSWORD, 'newPassword': MEMBER_PASSWORD_2})
+    t.eq(r.status, 200, 'the password can be changed')
+    t.truthy('pb_user=' in (r.header('set-cookie') or ''),
+             "changing a password re-issues this device's session")
+
+    r = member.get('/api/auth/session')
+    t.eq(r.json['user']['phone'], phone, 'the caller stays signed in')
+
+    other = Api(BASE)
+    back = Api(BASE)
+    r = back.post('/api/auth/login', {'phone': phone, 'password': MEMBER_PASSWORD})
+    t.eq(r.status, 401, 'the old password no longer works')
+
+    r = back.post('/api/auth/login', {'phone': phone, 'password': MEMBER_PASSWORD_2})
+    t.eq(r.status, 200, 'the new password works')
+
+    t.section('accounts: the seeded demo accounts work')
+
+    demo = Api(BASE)
+    r = demo.post('/api/auth/login', {'phone': DEMO_PHONE, 'password': DEMO_PASSWORD})
+    t.eq(r.status, 200, 'a seeded member signs in with the documented password')
+    t.eq(r.json['user']['id'], DEMO_ID, 'the seeded account is the expected one')
+    t.truthy(r.json['user']['ads'] > 0, 'the seeded account already has listings')
+
+    t.section('accounts: a second member')
+
+    # A genuinely different account — the ownership tests are meaningless if
+    # both clients are the same member.
+    r, other_phone = sign_up(other, name='Stranger Test Seller')
+    if r.status != 201:
+        t.ok(False, 'could not register a second member', f'got {r.status}: {r.data}')
+        return None
+    t.eq(r.status, 201, 'a second member can register')
+    other_id = r.json['user']['id']
+    t.truthy(other_id != me['id'], 'the two members are different accounts')
+
+    return {'member': member, 'other': other, 'anon': anon,
+            'id': me['id'], 'otherId': other_id,
+            'phone': phone, 'name': 'Rakib Test Seller'}
+
+
+def test_member_ads(ctx, t):
+    """Publishing and owning listings now that they belong to accounts."""
+    member, other, anon = ctx['member'], ctx['other'], ctx['anon']
+
+    t.section('publishing an ad as a member')
+
+    r = member.post('/api/ads', valid_ad())
     if r.status == 429:
         t.ok(False, 'the posting quota is exhausted',
              'Run ./tests/run-api-tests.sh, which resets it, or wait an hour.')
         return
-    t.eq(r.status, 201, 'POST /api/ads returns 201')
+    t.eq(r.status, 201, 'POST /api/ads returns 201 for a signed-in member')
+
     created = r.json.get('ad', {})
     ad_id = created.get('id')
-    token = r.json.get('ownerToken')
     t.truthy(ad_id, 'the created ad has an id')
-    t.truthy(token and len(token) >= 32, 'a strong owner token is returned')
     t.eq(created.get('price'), 25000, 'the price round-trips')
     t.eq(created.get('loc'), 'dhaka', 'the division round-trips')
+    t.eq(created.get('seller', {}).get('id'), ctx['id'],
+         'the listing is owned by the member who posted it')
+    t.truthy('ownerToken' not in r.json,
+             'no owner token is issued — ownership is the account itself')
     t.truthy(r.header('x-ratelimit-remaining') is not None,
              'the response reports the remaining posting quota')
 
-    r = api.get(f'/api/ads/{ad_id}')
+    r = member.get(f'/api/ads/{ad_id}')
     t.eq(r.status, 200, 'the new ad is immediately readable')
     t.eq(r.json['ad']['title'], valid_ad()['title'], 'the title round-trips')
+    t.eq(r.json['ad'].get('canManage'), True,
+         'the owner is told they can manage their own ad')
 
-    r = api.get('/api/ads?q=Playful Labrador puppies')
+    r = anon.get(f'/api/ads/{ad_id}')
+    t.eq(r.json['ad'].get('canManage'), False,
+         'an anonymous visitor is never given owner controls')
+
+    r = other.get(f'/api/ads/{ad_id}')
+    t.eq(r.json['ad'].get('canManage'), False,
+         'another signed-in member is not given owner controls either')
+
+    r = member.get('/api/ads?q=Playful Labrador puppies')
     t.truthy(any(a['id'] == ad_id for a in r.json.get('ads', [])),
              'the new ad appears in search results')
 
+    t.section('publishing: the account supplies the contact details')
+
+    body = valid_ad(title='Free kitten, contact block left out on purpose')
+    for key in ('contactName', 'contactPhone', 'contactEmail'):
+        body.pop(key)
+    r = member.post('/api/ads', body)
+    t.eq(r.status, 201, 'the contact block can be left out entirely')
+    contact_id = r.json['ad']['id']
+    t.eq(r.json['ad']['seller']['name'], ctx['name'],
+         'the account name fills in the missing contact name')
+
+    r = member.get(f'/api/ads/{contact_id}')
+    t.eq(r.json['ad']['phone'], ctx['phone'],
+         'the account phone number fills in the missing contact number')
+
     t.section('publishing: server-side validation')
 
-    r = api.post('/api/ads', valid_ad(title='short'))
+    r = member.post('/api/ads', valid_ad(title='short'))
     t.eq(r.status, 400, 'a too-short title is rejected')
     t.truthy('title' in r.json.get('details', {}), 'the error names the title field')
 
-    r = api.post('/api/ads', valid_ad(contactPhone='12345'))
+    r = member.post('/api/ads', valid_ad(contactPhone='12345'))
     t.eq(r.status, 400, 'a bad phone number is rejected')
     t.truthy('contactPhone' in r.json.get('details', {}), 'the error names the phone field')
 
-    r = api.post('/api/ads', valid_ad(subcategory='Persian'))
+    r = member.post('/api/ads', valid_ad(subcategory='Persian'))
     t.eq(r.status, 400, 'a breed from the wrong category is rejected')
     t.truthy('subcategory' in r.json.get('details', {}), 'the error names the breed field')
 
-    r = api.post('/api/ads', valid_ad(area='Nowhere-at-all'))
+    r = member.post('/api/ads', valid_ad(area='Nowhere-at-all'))
     t.eq(r.status, 400, 'an area outside the division is rejected')
     t.truthy('area' in r.json.get('details', {}), 'the error names the area field')
 
-    r = api.post('/api/ads', valid_ad(description='too short'))
+    r = member.post('/api/ads', valid_ad(description='too short'))
     t.eq(r.status, 400, 'a too-short description is rejected')
 
-    r = api.post('/api/ads', valid_ad(categoryId='dinosaurs'))
+    r = member.post('/api/ads', valid_ad(categoryId='dinosaurs'))
     t.eq(r.status, 400, 'an unknown category is rejected')
 
-    r = api.post('/api/ads', valid_ad(gender='Robot'))
+    r = member.post('/api/ads', valid_ad(gender='Robot'))
     t.eq(r.status, 400, 'an unexpected gender value is rejected')
 
-    r = api.post('/api/ads', valid_ad(price=-100))
+    r = member.post('/api/ads', valid_ad(price=-100))
     t.eq(r.status, 400, 'a negative price is rejected')
 
-    r = api.request('POST', '/api/ads', raw=b'not json at all',
-                    content_type='application/json')
+    r = member.request('POST', '/api/ads', raw=b'not json at all',
+                       content_type='application/json')
     t.eq(r.status, 400, 'malformed JSON is rejected')
 
     t.section('publishing: adoption listings are always free')
 
-    r = api.post('/api/ads', valid_ad(
+    r = member.post('/api/ads', valid_ad(
         kind='adoption', price=99999,
         title='Free rescue kitten looking for a loving home'))
     if r.status != 201:
@@ -429,114 +689,143 @@ def test_create_and_own(api, t):
     t.eq(r.status, 201, 'an adoption can be published')
     t.eq(r.json['ad']['price'], 0, 'the adoption price is forced to zero')
     adopt_id = r.json['ad']['id']
-    adopt_token = r.json['ownerToken']
 
-    t.section('owner control: editing without an account')
+    t.section('ownership: only the owner may change a listing')
 
-    r = api.put(f'/api/ads/{ad_id}', valid_ad())
-    t.eq(r.status, 401, 'editing with no owner token is rejected')
+    r = anon.put(f'/api/ads/{ad_id}', valid_ad())
+    t.eq(r.status, 401, 'editing while signed out is refused')
 
-    r = api.put(f'/api/ads/{ad_id}', valid_ad(),
-                headers={'x-owner-token': 'f' * 64})
-    t.eq(r.status, 401, 'editing with a wrong owner token is rejected')
+    r = other.put(f'/api/ads/{ad_id}', valid_ad(title='Hijacked title for this listing'))
+    t.eq(r.status, 403, 'another member cannot edit my ad')
 
-    r = api.put(f'/api/ads/{ad_id}', valid_ad(title='Updated Labrador puppies, ready now'),
-                headers={'x-owner-token': token})
-    t.eq(r.status, 200, 'editing with the correct owner token succeeds')
-    t.eq(r.json['ad']['title'], 'Updated Labrador puppies, ready now', 'the edit is applied')
+    r = other.delete(f'/api/ads/{ad_id}')
+    t.eq(r.status, 403, 'another member cannot delete my ad')
 
-    r = api.get(f'/api/ads/{ad_id}')
+    r = member.put(f'/api/ads/{ad_id}',
+                   valid_ad(title='Updated Labrador puppies, ready now'))
+    t.eq(r.status, 200, 'the owner can edit their own ad')
+    t.eq(r.json['ad']['title'], 'Updated Labrador puppies, ready now',
+         'the edit is applied')
+
+    r = member.get(f'/api/ads/{ad_id}')
     t.eq(r.json['ad']['title'], 'Updated Labrador puppies, ready now',
          'the edit persisted')
 
-    r = api.put(f'/api/ads/{ad_id}', valid_ad(title='nope'),
-                headers={'x-owner-token': token})
+    r = member.put(f'/api/ads/{ad_id}', valid_ad(title='nope'))
     t.eq(r.status, 400, 'an invalid edit is still rejected')
 
-    t.section('owner control: sold and available')
+    t.section('ownership: sold, available and the review queue')
 
-    r = api.put(f'/api/ads/{ad_id}', valid_ad(status='sold'),
-                headers={'x-owner-token': token})
+    r = member.put(f'/api/ads/{ad_id}', valid_ad(status='sold'))
     t.eq(r.status, 200, 'an owner can mark their own ad sold')
     t.eq(r.json['ad']['status'], 'sold', 'the ad is now sold')
 
-    r = api.put(f'/api/ads/{ad_id}', valid_ad(status='active'),
-                headers={'x-owner-token': token})
+    r = member.put(f'/api/ads/{ad_id}', valid_ad(status='active'))
     t.eq(r.json['ad']['status'], 'active', 'an owner can put it back up for sale')
 
-    r = api.put(f'/api/ads/{ad_id}', valid_ad(status='pending'),
-                headers={'x-owner-token': token})
+    r = member.put(f'/api/ads/{ad_id}', valid_ad(status='pending'))
     t.eq(r.json['ad']['status'], 'active',
          'an owner cannot push their own ad into the review queue')
 
-    r = api.put(f'/api/ads/{ad_id}', valid_ad(status='rejected'),
-                headers={'x-owner-token': token})
+    r = member.put(f'/api/ads/{ad_id}', valid_ad(status='rejected'))
     t.eq(r.json['ad']['status'], 'active', 'an owner cannot approve their own ad')
 
-    r = api.get(f'/api/ads/{ad_id}')
-    t.eq(r.json['ad'].get('canManage'), False,
-         'a stranger holding the link is not given owner controls')
+    t.section('my ads')
 
-    r = api.get(f'/api/ads/{ad_id}', headers={'x-owner-token': token})
-    t.eq(r.json['ad'].get('canManage'), True,
-         'the owner is told they can manage their own ad')
+    r = member.get('/api/me/ads')
+    t.eq(r.status, 200, 'GET /api/me/ads returns 200')
+    mine = r.json.get('ads', [])
+    t.truthy(any(a['id'] == ad_id for a in mine), 'my own listing is in my list')
+    t.truthy(all(a['seller']['id'] == ctx['id'] for a in mine),
+             'my list contains nothing but my own listings')
+    t.truthy(all(a.get('canManage') for a in mine),
+             'every row in my own list is marked manageable')
+    t.truthy('counts' in r.json, 'the list reports per-status counts')
+    t.truthy('rejectionReason' in mine[0], 'the list carries the moderation note')
+    t.truthy(any(a.get('phone') for a in mine),
+             'my own list carries the contact number the editor needs')
+
+    r = anon.get('/api/me/ads')
+    t.eq(r.status, 401, 'my ads are private to the account')
+
+    t.section('seller profiles')
+
+    r = anon.get(f"/api/users/{ctx['id']}")
+    t.eq(r.status, 200, 'a seller profile is public')
+    profile = r.json.get('user', {})
+    t.eq(profile.get('id'), ctx['id'], 'the profile belongs to the right member')
+    t.eq(profile.get('name'), ctx['name'], 'the profile shows the account name')
+    t.truthy(profile.get('ads', 0) > 0, 'the profile counts the live listings')
+    t.truthy('phone' not in profile and 'email' not in profile,
+             'the public profile withholds contact details')
+    t.truthy(any(a['id'] == ad_id for a in r.json.get('ads', [])),
+             "the seller's live listings are listed")
+    t.truthy(all(a['seller']['id'] == ctx['id'] for a in r.json.get('ads', [])),
+             'nothing but their own listings appear on the profile')
+
+    r = anon.get('/api/users/u-nope')
+    t.eq(r.status, 404, 'an unknown seller returns 404')
 
     t.section('view counter')
 
-    r = api.post(f'/api/ads/{ad_id}/view')
+    r = anon.post(f'/api/ads/{ad_id}/view')
     t.eq(r.status, 200, 'POST /api/ads/:id/view returns 200')
     t.eq(r.json.get('counted'), True, 'the first view is counted')
     first_views = r.json.get('views')
     t.truthy(first_views >= 1, 'the view count is at least 1')
 
-    r = api.post(f'/api/ads/{ad_id}/view')
+    r = anon.post(f'/api/ads/{ad_id}/view')
     t.eq(r.json.get('counted'), False, 'a repeat view from the same visitor is not counted')
     t.eq(r.json.get('views'), first_views, 'the view count did not move')
 
-    r = api.post('/api/ads/ad-nope/view')
+    r = anon.post('/api/ads/ad-nope/view')
     t.eq(r.status, 404, 'viewing an unknown ad returns 404')
 
     t.section('reports')
 
-    r = api.get('/api/reports')
+    r = anon.get('/api/reports')
     t.eq(r.status, 200, 'GET /api/reports lists the reasons')
     t.truthy(len(r.json.get('reasons', [])) >= 5, 'there is a usable set of reasons')
 
-    r = api.post('/api/reports', {'adId': ad_id, 'reason': 'Already sold'})
+    r = anon.post('/api/reports', {'adId': ad_id, 'reason': 'Already sold'})
     t.eq(r.status, 201, 'reporting an ad works')
 
-    r = api.post('/api/reports', {'adId': ad_id, 'reason': 'Already sold'})
+    r = anon.post('/api/reports', {'adId': ad_id, 'reason': 'Already sold'})
     t.eq(r.status, 409, 'reporting the same ad twice is refused')
 
-    r = api.post('/api/reports', {'adId': ad_id, 'reason': 'Because I said so'})
+    r = anon.post('/api/reports', {'adId': ad_id, 'reason': 'Because I said so'})
     t.eq(r.status, 400, 'an unknown reason is rejected')
 
-    r = api.post('/api/reports', {'adId': 'ad-nope', 'reason': 'Already sold'})
+    r = anon.post('/api/reports', {'adId': 'ad-nope', 'reason': 'Already sold'})
     t.eq(r.status, 400, 'reporting an unknown ad is rejected')
 
     t.section('deleting an ad')
 
-    r = api.delete(f'/api/ads/{ad_id}')
-    t.eq(r.status, 401, 'deleting with no owner token is rejected')
+    r = anon.delete(f'/api/ads/{ad_id}')
+    t.eq(r.status, 401, 'deleting while signed out is refused')
 
-    r = api.delete(f'/api/ads/{ad_id}', headers={'x-owner-token': 'f' * 64})
-    t.eq(r.status, 401, 'deleting with a wrong owner token is rejected')
+    r = other.delete(f'/api/ads/{ad_id}')
+    t.eq(r.status, 403, 'another member cannot delete my ad')
 
-    r = api.delete(f'/api/ads/{ad_id}', headers={'x-owner-token': token})
-    t.eq(r.status, 200, 'deleting with the correct owner token succeeds')
+    r = member.delete(f'/api/ads/{ad_id}')
+    t.eq(r.status, 200, 'the owner can delete their own ad')
 
-    r = api.get(f'/api/ads/{ad_id}')
+    r = member.get(f'/api/ads/{ad_id}')
     t.eq(r.status, 404, 'the deleted ad is gone')
 
-    r = api.delete(f'/api/ads/{adopt_id}', headers={'x-owner-token': adopt_token})
+    r = member.delete(f'/api/ads/{adopt_id}')
     t.eq(r.status, 200, 'the adoption listing was cleaned up')
 
+    r = member.delete(f'/api/ads/{contact_id}')
+    t.eq(r.status, 200, 'the contact-block listing was cleaned up')
 
-def test_admin(api, t):
+
+def test_admin(api, t, ctx):
     t.section('admin: access control')
 
     for path in ('/api/admin/overview', '/api/admin/ads', '/api/admin/settings',
-                 '/api/admin/admins', '/api/admin/reports'):
+                 '/api/admin/admins', '/api/admin/reports', '/api/admin/users',
+                 '/api/admin/users/u-anything'):
         r = api.get(path)
         t.eq(r.status, 401, f'{path} is locked when signed out')
 
@@ -568,6 +857,9 @@ def test_admin(api, t):
     t.truthy(isinstance(r.json.get('byCategory'), list), 'the dashboard reports categories')
     t.truthy(isinstance(r.json.get('daily'), list), 'the dashboard reports a daily series')
     t.truthy('openReports' in r.json, 'the dashboard reports open reports')
+    t.truthy('members' in r.json, 'the dashboard reports member numbers')
+    t.truthy(r.json['members'].get('total', 0) > 0, 'member totals are counted')
+    t.truthy(r.json['members'].get('withAds', 0) > 0, 'members with listings are counted')
 
     t.section('admin: listing every ad, whatever its status')
 
@@ -584,12 +876,15 @@ def test_admin(api, t):
 
     t.section('admin: moderation actions')
 
-    r = api.post('/api/ads', valid_ad(title='Moderation target puppy for admin testing'))
+    # Posted by the member, because only members can publish. The admin's
+    # powers are then exercised against somebody else's listing, which is the
+    # case that actually matters.
+    r = ctx['member'].post('/api/ads',
+                           valid_ad(title='Moderation target puppy for admin testing'))
     if r.status != 201:
         t.ok(False, 'could not create a moderation target', f'got {r.status}: {r.data}')
         return
     mod_id = r.json['ad']['id']
-    token = r.json['ownerToken']
 
     r = api.patch(f'/api/admin/ads/{mod_id}', {'action': 'feature'})
     t.eq(r.status, 200, 'featuring an ad works')
@@ -634,12 +929,12 @@ def test_admin(api, t):
 
     r = api.put(f'/api/ads/{mod_id}',
                 valid_ad(title='Admin corrected title for this listing'))
-    t.eq(r.status, 200, 'an admin can edit an ad without the owner token')
+    t.eq(r.status, 200, 'an admin can edit an ad they do not own')
     t.eq(r.json['ad']['title'], 'Admin corrected title for this listing',
          'the admin edit is applied')
 
-    r = api.delete(f'/api/ads/{mod_id}', headers={'x-owner-token': token})
-    t.eq(r.status, 200, 'the moderation target was cleaned up')
+    r = api.delete(f'/api/ads/{mod_id}')
+    t.eq(r.status, 200, "an admin can delete a member's ad")
 
     t.section('admin: reports queue')
 
@@ -669,6 +964,7 @@ def test_admin(api, t):
     t.eq(r.status, 200, 'settings load')
     original = dict(r.json.get('settings', {}))
     t.truthy('auto_approve' in original, 'auto_approve is exposed')
+    t.truthy('signup_limit' in original, 'the sign-up rate limit is exposed')
 
     r = api.put('/api/admin/settings', {'site_name': 'PetBikroy Test', 'post_limit': 25})
     t.eq(r.status, 200, 'settings can be updated')
@@ -735,11 +1031,192 @@ def test_admin(api, t):
     t.eq(r.status, 200, 'the temporary moderator was removed')
 
 
-def test_uploads(api, t):
+def test_admin_members(api, t, ctx):
+    """Member administration: listing, verifying, suspending, resetting.
+
+    Runs after test_admin(), which is where `api` signs in as an administrator.
+    """
+    anon = ctx['anon']
+
+    t.section('admin: members')
+
+    # Every listing the earlier sections posted has been cleaned up, so give
+    # the member one live ad for the per-member numbers to actually count.
+    r = ctx['member'].post('/api/ads', valid_ad(
+        title='A listing counted by the member administration view'))
+    if r.status != 201:
+        t.ok(False, 'could not create the member listing', f'got {r.status}: {r.data}')
+        return
+    counted_ad = r.json['ad']['id']
+
+    r = api.get('/api/admin/users?perPage=100')
+    t.eq(r.status, 200, 'the member list loads')
+    t.truthy(r.json.get('total', 0) >= 24, 'the seeded members are counted')
+    rows = r.json.get('users', [])
+    t.truthy(all('password_hash' not in u and 'password_salt' not in u for u in rows),
+             'password material never leaves the database')
+    t.truthy(any(u['id'] == ctx['id'] for u in rows), 'the test member is listed')
+
+    sample = next(u for u in rows if u['id'] == ctx['id'])
+    t.truthy(sample['ads'] >= 1, "each row counts that member's listings")
+    t.truthy(sample['activeAds'] >= 1, 'live listings are counted separately')
+
+    r = api.get(f"/api/admin/users?q={ctx['phone']}")
+    t.truthy(any(u['id'] == ctx['id'] for u in r.json.get('users', [])),
+             'members can be searched by phone number')
+
+    r = api.get('/api/admin/users?filter=verified')
+    t.truthy(all(u['verified'] for u in r.json.get('users', [])),
+             'the verified filter narrows the list')
+
+    r = api.get(f"/api/admin/users/{ctx['id']}")
+    t.eq(r.status, 200, 'a member detail page loads')
+    t.eq(r.json['user']['phone'], ctx['phone'], 'the admin sees the phone number')
+    t.truthy(isinstance(r.json.get('ads'), list), 'the member detail lists their ads')
+    t.truthy(all(a['sellerId'] == ctx['id'] for a in r.json['ads']),
+             "only that member's ads appear on their page")
+
+    r = api.get('/api/admin/users/u-nope')
+    t.eq(r.status, 404, 'an unknown member returns 404')
+
+    r = api.patch('/api/admin/users/u-nope', {'action': 'verify'})
+    t.eq(r.status, 404, 'acting on an unknown member returns 404')
+
+    r = api.patch(f"/api/admin/users/{ctx['id']}", {'action': 'explode'})
+    t.eq(r.status, 400, 'an unknown member action is refused')
+
+    t.section('admin: verifying a member')
+
+    r = api.patch(f"/api/admin/users/{ctx['id']}", {'action': 'verify'})
+    t.eq(r.status, 200, 'a member can be verified')
+    t.eq(r.json['user']['verified'], True, 'the badge is set')
+
+    r = anon.get(f"/api/users/{ctx['id']}")
+    t.eq(r.json['user']['verified'], True, 'the public profile shows the badge')
+
+    r = api.patch(f"/api/admin/users/{ctx['id']}", {'action': 'unverify'})
+    t.eq(r.json['user']['verified'], False, 'verification can be taken back')
+
+    t.section('admin: suspending a member')
+
+    # A separate account, so the rest of the suite keeps a working member.
+    victim = Api(BASE)
+    r, victim_phone = sign_up(victim, name='Suspended Test Seller')
+    if r.status != 201:
+        t.ok(False, 'could not register the member to suspend', f'got {r.status}: {r.data}')
+        return
+    victim_id = r.json['user']['id']
+
+    r = api.patch(f'/api/admin/users/{victim_id}', {'action': 'deactivate'})
+    t.eq(r.status, 200, 'a member can be deactivated')
+    t.eq(r.json['user']['active'], False, 'the account reads as inactive')
+
+    r = victim.get('/api/auth/session')
+    t.eq(r.json.get('user'), None, 'a deactivated member is signed out at once')
+
+    r = victim.post('/api/auth/login',
+                    {'phone': victim_phone, 'password': MEMBER_PASSWORD})
+    t.eq(r.status, 401, 'a deactivated member cannot sign back in')
+
+    r = anon.get(f'/api/users/{victim_id}')
+    t.eq(r.status, 404, 'a deactivated seller profile is hidden')
+
+    r = api.patch(f'/api/admin/users/{victim_id}', {'action': 'activate'})
+    t.eq(r.json['user']['active'], True, 'a member can be reactivated')
+
+    r = victim.post('/api/auth/login',
+                    {'phone': victim_phone, 'password': MEMBER_PASSWORD})
+    t.eq(r.status, 200, 'the reactivated member can sign in again')
+
+    t.section('admin: role limits on member management')
+
+    mod_email = f'mod-{uuid.uuid4().hex[:8]}@petbikroy.test'
+    mod_password = 'a-long-enough-password'
+    r = api.post('/api/admin/admins', {
+        'email': mod_email, 'name': 'Temp Member Moderator',
+        'password': mod_password, 'role': 'moderator',
+    })
+    if r.status != 201:
+        t.ok(False, 'could not create a moderator', f'got {r.status}: {r.data}')
+        return
+    mod_id = r.json['admin']['id']
+
+    mod = Api(BASE)
+    r = mod.post('/api/admin/session', {'email': mod_email, 'password': mod_password})
+    t.eq(r.status, 200, 'the new moderator can sign in')
+
+    r = mod.get('/api/admin/users')
+    t.eq(r.status, 200, 'a moderator may read the member list')
+
+    r = mod.patch(f'/api/admin/users/{victim_id}', {'action': 'verify'})
+    t.eq(r.status, 200, 'a moderator may verify a member')
+
+    r = mod.patch(f'/api/admin/users/{victim_id}', {'action': 'deactivate'})
+    t.eq(r.status, 403, 'a moderator may not deactivate a member')
+
+    r = mod.patch(f'/api/admin/users/{victim_id}', {'action': 'resetPassword'})
+    t.eq(r.status, 403, 'a moderator may not reset a password')
+
+    r = mod.delete(f'/api/admin/users/{victim_id}')
+    t.eq(r.status, 403, 'a moderator may not delete a member')
+
+    mod.delete('/api/admin/session')
+    api.delete(f'/api/admin/admins/{mod_id}')
+
+    t.section('admin: resetting a member password')
+
+    r = api.patch(f'/api/admin/users/{victim_id}', {'action': 'resetPassword'})
+    t.eq(r.status, 200, 'a password reset is issued')
+    fresh_password = r.json.get('password') or ''
+    t.truthy(len(fresh_password) >= 8, 'the issued password is long enough')
+
+    r = Api(BASE).post('/api/auth/login',
+                       {'phone': victim_phone, 'password': MEMBER_PASSWORD})
+    t.eq(r.status, 401, 'the old password stops working after a reset')
+
+    revived = Api(BASE)
+    r = revived.post('/api/auth/login',
+                     {'phone': victim_phone, 'password': fresh_password})
+    t.eq(r.status, 200, 'the issued password works')
+
+    t.section('admin: deleting a member')
+
+    r = revived.post('/api/ads', valid_ad(
+        title='A listing that should vanish with its owner'))
+    if r.status != 201:
+        t.ok(False, 'could not create the cascade test listing', f'got {r.status}: {r.data}')
+        return
+    doomed_ad = r.json['ad']['id']
+
+    r = api.delete(f'/api/admin/users/{victim_id}')
+    t.eq(r.status, 200, 'an admin can delete a member account')
+
+    r = api.get(f'/api/admin/users/{victim_id}')
+    t.eq(r.status, 404, 'the deleted member is gone')
+
+    r = anon.get(f'/api/users/{victim_id}')
+    t.eq(r.status, 404, 'their public profile is gone too')
+
+    r = anon.get(f'/api/ads/{doomed_ad}')
+    t.eq(r.status, 404, "the member's listings went with them")
+
+    r = ctx['member'].delete(f'/api/ads/{counted_ad}')
+    t.eq(r.status, 200, 'cleanup: the counted listing was deleted')
+
+
+def test_uploads(api, t, ctx):
     t.section('image uploads to R2')
 
+    member = ctx['member']
+
+    # Photos only ever exist to be attached to a listing, and listings belong
+    # to accounts, so an anonymous upload has nowhere to go.
     body, ctype = multipart([('puppy.png', 'image/png', make_png((0, 128, 255)))])
-    r = api.request('POST', '/api/upload', raw=body, content_type=ctype)
+    r = ctx['anon'].request('POST', '/api/upload', raw=body, content_type=ctype)
+    t.eq(r.status, 401, 'uploading without an account is refused')
+
+    body, ctype = multipart([('puppy.png', 'image/png', make_png((0, 128, 255)))])
+    r = member.request('POST', '/api/upload', raw=body, content_type=ctype)
     t.eq(r.status, 201, 'a PNG uploads successfully')
     keys = r.json.get('keys', [])
     t.eq(len(keys), 1, 'one key is returned')
@@ -754,11 +1231,11 @@ def test_uploads(api, t):
     t.eq(cached.status, 304, 'a matching ETag returns 304 Not Modified')
 
     body, ctype = multipart([('fake.png', 'image/png', b'this is definitely not a PNG')])
-    r = api.request('POST', '/api/upload', raw=body, content_type=ctype)
+    r = member.request('POST', '/api/upload', raw=body, content_type=ctype)
     t.eq(r.status, 400, 'a file that only claims to be a PNG is refused')
 
     body, ctype = multipart([('a.png', 'image/png', make_png())] * 7)
-    r = api.request('POST', '/api/upload', raw=body, content_type=ctype)
+    r = member.request('POST', '/api/upload', raw=body, content_type=ctype)
     t.eq(r.status, 400, 'more than six photos are refused')
 
     r = api.get('/img/nothing/here.png')
@@ -781,18 +1258,17 @@ def test_uploads(api, t):
 
     body, ctype = multipart([('one.png', 'image/png', make_png((10, 200, 10))),
                              ('two.png', 'image/png', make_png((200, 10, 10)))])
-    r = api.request('POST', '/api/upload', raw=body, content_type=ctype)
+    r = member.request('POST', '/api/upload', raw=body, content_type=ctype)
     t.eq(r.status, 201, 'two photos upload at once')
     keys = r.json.get('keys', [])
     t.eq(len(keys), 2, 'two keys come back')
 
-    r = api.post('/api/ads', valid_ad(
+    r = member.post('/api/ads', valid_ad(
         title='Puppy with uploaded photos for testing',
         photos=keys))
     t.eq(r.status, 201, 'an ad can be created with photos')
     ad = r.json['ad']
     ad_id = ad['id']
-    token = r.json['ownerToken']
     t.eq(len(ad.get('photos', [])), 2, 'both photos are attached to the ad')
     t.eq(ad['photos'][0], f'/img/{keys[0]}', 'photo order is preserved')
 
@@ -801,7 +1277,7 @@ def test_uploads(api, t):
     t.truthy(found is not None, 'the ad with photos is listed')
     t.eq(len(found.get('photos', [])), 2, 'listings carry their photos too')
 
-    r = api.delete(f'/api/ads/{ad_id}', headers={'x-owner-token': token})
+    r = member.delete(f'/api/ads/{ad_id}')
     t.eq(r.status, 200, 'cleanup: the photo ad was deleted')
 
 
@@ -815,13 +1291,17 @@ def test_routing(api, t):
     t.truthy('content-security-policy' in {k.lower() for k in r.headers},
              'a Content-Security-Policy is present')
 
-    for page in ('/listings.html', '/post.html', '/my-ads.html', '/favorites.html'):
+    for page in ('/listings.html', '/post.html', '/my-ads.html', '/favorites.html',
+                 '/login.html', '/register.html', '/account.html'):
         r = api.get(page)
         # Cloudflare Pages issues a 308 from /page.html to /page (clean URLs).
         t.truthy(r.status in (200, 308), f'{page} is served')
         if r.status == 308:
             target = r.header('location') or ''
             t.eq(api.get(target).status, 200, f'{page} redirects to a real page')
+
+    r = api.get('/seller.html?id=u-nope')
+    t.truthy(r.status in (200, 308), 'the seller profile page is served')
 
     r = api.get('/admin/')
     t.eq(r.status, 200, 'the admin panel is served')
@@ -880,8 +1360,10 @@ def main():
     api = Api(BASE)
     t = Suite()
 
-    # Order matters: the owner-token tests must run before any sign-in,
-    # otherwise the admin session would authorise them and hide a regression.
+    # Order matters. An administrator may manage any listing, so once `api`
+    # signs in as staff in test_admin() the public "you cannot manage this"
+    # assertions would pass for the wrong reason. They run first, while the
+    # client is still an ordinary visitor.
     try:
         api.get('/api/stats')
     except urllib.error.URLError as e:
@@ -890,9 +1372,14 @@ def main():
         return 2
 
     test_public_read(api, t)
-    test_create_and_own(api, t)
-    test_admin(api, t)
-    test_uploads(api, t)
+    ctx = test_accounts(t)
+    if ctx is None:
+        print(f'{C_RED}Could not create a test member; stopping early.{C_OFF}')
+        return t.report()
+    test_member_ads(ctx, t)
+    test_admin(api, t, ctx)
+    test_admin_members(api, t, ctx)
+    test_uploads(api, t, ctx)
     test_routing(api, t)
 
     return t.report()

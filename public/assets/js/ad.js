@@ -100,9 +100,14 @@
     const phone = ad.phone || ad.contactPhone || '';
     const email = ad.email || ad.contactEmail || '';
 
-    // canManage comes from the server: true when this browser holds the owner
-    // token for this ad, or an admin is signed in.
-    const mine = ad.canManage ?? PB.isUserAd(ad.id);
+    // canManage comes from the server: true when the signed-in member owns
+    // this listing, or a moderator is signed in. Offline there is no server
+    // verdict, so fall back to "did this browser create it?".
+    const mine = ad.canManage === true
+      || (ad.canManage === undefined && PB.isUserAd(ad.id));
+
+    // The account behind the listing, when the server told us about one.
+    const sellerLink = seller.id ? `seller.html?id=${encodeURIComponent(seller.id)}` : '';
 
     /* -------------------------------------------------------------- gallery */
 
@@ -130,11 +135,16 @@
           <div class="seller-head">
             <div class="seller-avatar">${esc(UI.initials(seller.name))}</div>
             <div style="min-width:0">
-              <div class="seller-name">${esc(seller.name)}</div>
+              <div class="seller-name">${sellerLink
+                ? `<a href="${esc(sellerLink)}">${esc(seller.name)}</a>`
+                : esc(seller.name)}</div>
               <div class="tiny muted">Member since ${esc(PB.formatDate(seller.joined))}</div>
               ${seller.verified ? `<span class="verify-badge">${icon('shield', 12)} Verified seller</span>` : ''}
             </div>
           </div>
+
+          ${sellerLink ? `<a class="btn btn-outline btn-block btn-sm mt-8"
+             href="${esc(sellerLink)}">View all their ads</a>` : ''}
 
           <div class="divider"></div>
 

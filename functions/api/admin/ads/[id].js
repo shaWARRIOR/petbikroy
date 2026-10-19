@@ -50,6 +50,33 @@ export async function onRequestPatch({ request, env, params }) {
 
     const body = await readJson(request, 8 * 1024);
     const action = str(body.action, 30);
+
+    // Reassignment is the one moderation action that needs a target account,
+    // so it is handled before the simple status actions.
+    if (action === 'reassign') {
+      if (admin.role !== 'admin') {
+        throw new HttpError('Only an administrator can move an ad to another member.', 403);
+      }
+      const userId = str(body.userId, 60);
+      if (!userId) throw badRequest('Choose the member who should own this ad.');
+
+      const target = await env.DB.prepare('SELECT id, name FROM users WHERE id = ?')
+        .bind(userId).first();
+      if (!target) throw badRequest('That member does not exist.');
+
+      await env.DB.prepare('UPDATE ads SET user_id = ?, updated_at = ? WHERE id = ?')
+        .bind(target.id, nowIso(), params.id).run();
+
+      await recordAudit(env, {
+        actorId: admin.id, actorEmail: admin.email,
+        action: 'ad.reassigned', targetType: 'ad', targetId: params.id,
+        detail: `${row.title} -> ${target.name}`,
+      });
+
+      const moved = await load(env, params.id);
+      return json({ ad: toAdminAd(moved, await fetchPhotos(env, params.id)) });
+    }
+
     const spec = ACTIONS[action];
 
     if (!spec) throw badRequest('Unknown action.');

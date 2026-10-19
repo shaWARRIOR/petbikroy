@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create an account — PetBikroy</title>
+<meta name="description" content="Create a free PetBikroy account with your mobile number and start posting pet ads in Bangladesh.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<noscript>
+  <div style="max-width:1200px;margin:16px auto;padding:14px 18px;border:1px solid #f6dfb8;background:#fff8ec;border-radius:10px;font:14px/1.5 system-ui,sans-serif;color:#7c5a14">
+    <strong>JavaScript is turned off.</strong> Creating an account needs JavaScript,
+    because the session is established by a scripted request rather than a form post.
+  </div>
+</noscript>
+
+<main class="page" id="main">
+  <div class="wrap">
+    <div id="crumbs"></div>
+
+    <div class="card auth-card">
+      <h1>Create your account</h1>
+      <p class="lead">Free, and it takes about a minute. Your mobile number is
+      how buyers reach you, and how you sign in next time.</p>
+
+      <div class="form-alert hide" id="formAlert" role="alert"></div>
+
+      <form id="registerForm" novalidate>
+        <div class="field">
+          <label class="req" for="name">Your name or business</label>
+          <input class="input" id="name" name="name" type="text" autocomplete="name"
+                 maxlength="80" required>
+          <div class="err-msg" data-err="name"></div>
+        </div>
+
+        <div class="field">
+          <label class="req" for="phone">Mobile number</label>
+          <input class="input" id="phone" name="phone" type="tel" inputmode="numeric"
+                 autocomplete="username" placeholder="01712345678" required>
+          <div class="tiny muted">This appears on your ads so buyers can call you.</div>
+          <div class="err-msg" data-err="phone"></div>
+        </div>
+
+        <div class="field">
+          <label for="email">Email <span class="tiny muted">(optional)</span></label>
+          <input class="input" id="email" name="email" type="email"
+                 autocomplete="email" maxlength="160">
+          <div class="err-msg" data-err="email"></div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="req" for="password">Password</label>
+            <input class="input" id="password" name="password" type="password"
+                   autocomplete="new-password" required>
+            <div class="tiny muted">At least 8 characters.</div>
+            <div class="err-msg" data-err="password"></div>
+          </div>
+
+          <div class="field">
+            <label class="req" for="confirm">Repeat password</label>
+            <input class="input" id="confirm" name="confirm" type="password"
+                   autocomplete="new-password" required>
+            <div class="err-msg" data-err="confirm"></div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="locationId">Division <span class="tiny muted">(optional)</span></label>
+            <select class="select" id="locationId" name="locationId">
+              <option value="">Choose a division</option>
+            </select>
+            <div class="err-msg" data-err="locationId"></div>
+          </div>
+
+          <div class="field">
+            <label for="area">Area <span class="tiny muted">(optional)</span></label>
+            <select class="select" id="area" name="area" disabled>
+              <option value="">Choose a division first</option>
+            </select>
+            <div class="err-msg" data-err="area"></div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-block" type="submit" id="submitBtn">Create account</button>
+      </form>
+
+      <p class="auth-alt">
+        Already have an account? <a href="login.html">Sign in instead</a>.
+      </p>
+    </div>
+  </div>
+</main>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/register.js"></script>
+</body>
+</html>

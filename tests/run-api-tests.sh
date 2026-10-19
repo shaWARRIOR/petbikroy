@@ -23,11 +23,21 @@ DB="${PB_DB:-petbikroy}"
 # to find without matching on titles.
 TEST_EMAIL="seller@example.com"
 
+# Members the suite registers get numbers in this range, which no seeded or
+# real account uses, so a crashed run's accounts (and their ads) are easy to
+# remove.
+TEST_PHONE_PREFIX="019000"
+
 # Production default for the hourly posting limit, restored after the run.
 # The suite deliberately posts a lot of ads (many of them invalid), so it
 # needs more headroom than a real visitor ever would.
 PROD_POST_LIMIT="${PB_POST_LIMIT:-10}"
 TEST_POST_LIMIT=200
+
+# The same for sign-ups: the suite deliberately walks the registration form
+# through every validation failure.
+PROD_SIGNUP_LIMIT="${PB_SIGNUP_LIMIT:-10}"
+TEST_SIGNUP_LIMIT=200
 
 WRANGLER_BIN=""
 LOCAL=0
@@ -39,7 +49,9 @@ restore_state() {
   [[ -n "$WRANGLER_BIN" && "$LOCAL" == "1" ]] || return 0
   "$WRANGLER_BIN" d1 execute "$DB" --local --command \
     "INSERT INTO settings (key, value, updated_at) VALUES ('post_limit', '${PROD_POST_LIMIT}', '${NOW}')
-     ON CONFLICT(key) DO UPDATE SET value = '${PROD_POST_LIMIT}';" >/dev/null 2>&1
+     ON CONFLICT(key) DO UPDATE SET value = '${PROD_POST_LIMIT}';
+     INSERT INTO settings (key, value, updated_at) VALUES ('signup_limit', '${PROD_SIGNUP_LIMIT}', '${NOW}')
+     ON CONFLICT(key) DO UPDATE SET value = '${PROD_SIGNUP_LIMIT}';" >/dev/null 2>&1
 }
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -68,12 +80,23 @@ if [[ "$LOCAL" == "1" ]]; then
 
   if [[ -n "$WRANGLER_BIN" ]]; then
     SQL="DELETE FROM rate_limits;
+         DELETE FROM audit_log;
          DELETE FROM ads WHERE contact_email = '${TEST_EMAIL}';
+         DELETE FROM ads
+           WHERE user_id IN (SELECT id FROM users WHERE phone LIKE '${TEST_PHONE_PREFIX}%');
+         DELETE FROM ad_photos WHERE ad_id NOT IN (SELECT id FROM ads);
+         DELETE FROM reports WHERE ad_id NOT IN (SELECT id FROM ads);
+         DELETE FROM users WHERE phone LIKE '${TEST_PHONE_PREFIX}%';
+         DELETE FROM sessions
+           WHERE kind = 'user'
+             AND user_id NOT IN (SELECT id FROM users);
          INSERT INTO settings (key, value, updated_at) VALUES ('post_limit', '${TEST_POST_LIMIT}', '${NOW}')
-           ON CONFLICT(key) DO UPDATE SET value = '${TEST_POST_LIMIT}';"
+           ON CONFLICT(key) DO UPDATE SET value = '${TEST_POST_LIMIT}';
+         INSERT INTO settings (key, value, updated_at) VALUES ('signup_limit', '${TEST_SIGNUP_LIMIT}', '${NOW}')
+           ON CONFLICT(key) DO UPDATE SET value = '${TEST_SIGNUP_LIMIT}';"
     if RESET_OUT=$("$WRANGLER_BIN" d1 execute "$DB" --local --command "$SQL" 2>&1); then
-      echo "  reset    cleared rate limits and stale test ads"
-      echo "  note     posting limit raised to ${TEST_POST_LIMIT} for the run, restored to ${PROD_POST_LIMIT} at exit"
+      echo "  reset    cleared rate limits, login counters and stale test data"
+      echo "  note     limits raised for the run (ads ${TEST_POST_LIMIT}, sign-ups ${TEST_SIGNUP_LIMIT}), restored to ${PROD_POST_LIMIT}/${PROD_SIGNUP_LIMIT} at exit"
       trap restore_state EXIT
     else
       # Usually an unreachable Node binary or a missing local database.

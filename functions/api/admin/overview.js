@@ -5,12 +5,16 @@
 import { json, handleError, corsHeaders } from '../../_lib/http.js';
 import { requireAdmin } from '../../_lib/auth.js';
 import { adCounts } from '../../_lib/ads.js';
+import { userCounts } from '../../_lib/users.js';
 
 export async function onRequestGet({ request, env }) {
   try {
     await requireAdmin(env, request);
 
-    const counts = await adCounts(env);
+    const [counts, members] = await Promise.all([
+      adCounts(env),
+      userCounts(env),
+    ]);
 
     const [reports, recent, byCat, byLoc, daily] = await Promise.all([
       env.DB.prepare(
@@ -50,6 +54,7 @@ export async function onRequestGet({ request, env }) {
 
     return json({
       counts,
+      members,
       openReports: reports?.n ?? 0,
       admins: admins?.n ?? 0,
       recentAds: recent.results ?? [],

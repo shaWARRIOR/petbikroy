@@ -95,6 +95,7 @@ export const DEFAULT_SETTINGS = {
   listings_per_page: '12',
   posting_enabled: '1',
   post_limit: '10',           // ads one visitor may publish per hour
+  signup_limit: '10',         // accounts one address may create per hour
   contact_email: 'hello@petbikroy.test',
 };
 

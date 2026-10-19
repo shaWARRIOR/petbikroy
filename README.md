@@ -36,6 +36,29 @@ npx wrangler pages project create petbikroy --production-branch main
 npx wrangler pages deploy
 ```
 
+### Demo accounts
+
+The seed catalogue is posted by **24 fictional members**. Every one of them signs
+in with the shared password:
+
+```
+password    petbikroy123
+numbers     01311000000  Rakib Hasan        (and 23 more — see db/seed.sql)
+```
+
+Sign in at `/login.html` with any of those numbers to see the site as a seller:
+your own listings, the edit form, the "mark sold" control, and a public seller
+page. The full list of numbers and names is at the top of `db/seed.sql`.
+
+The admin panel at `/admin/` is a *separate* account, created by
+`tools/create-admin.mjs`. It is not part of the seed.
+
+> **Change the demo password before you put a seeded database online.** These
+> accounts are published in this repository, so anyone who reads it can sign in
+> as them. Either delete the seeded members
+> (`DELETE FROM users WHERE id LIKE 'u-seed-%'`) or reset their passwords from
+> **Members** in the admin panel.
+
 ---
 
 ## Pages
@@ -46,9 +69,13 @@ npx wrangler pages deploy
 | Browse | `public/listings.html` | Sidebar filters (category, breed, division, area, price, sold), sorting, grid/list toggle, pagination |
 | Ad detail | `public/ad.html?id=…` | Photo gallery with keyboard nav, specs, description, seller card, phone reveal, report an ad, similar ads |
 | Post an ad | `public/post.html` | 5-step wizard: category → details + photos → location → review → published |
-| My ads | `public/my-ads.html` | Everything this browser posted: status, rejection reasons, edit, mark sold, delete |
+| My ads | `public/my-ads.html` | Everything you posted: status, rejection reasons, edit, mark sold, delete |
 | Saved | `public/favorites.html` | Ads you hearted |
-| Admin | `public/admin/index.html` | Overview, listings, moderation queue, reports, settings, team |
+| Sign in | `public/login.html` | Phone number + password |
+| Register | `public/register.html` | Create an account — name, phone number, password |
+| Account | `public/account.html` | Edit your profile, change your password, see your listing counts |
+| Seller profile | `public/seller.html?id=…` | A member's public page: name, area, bio, verified badge, their live ads |
+| Admin | `public/admin/index.html` | Overview, listings, moderation queue, members, reports, settings, team |
 
 ---
 
@@ -60,8 +87,13 @@ npx wrangler pages deploy
   bookmarked, shared, and navigated with the back button.
 - **Full-text search** across title, description, breed, category and location.
 - **Real photo uploads** to object storage, with magic-byte validation.
-- **No account needed.** Post an ad, get a one-time owner token, and manage it
-  from "My ads". Nothing to sign up for.
+- **Accounts with a phone number.** Sign in with a mobile number and a password
+  — no email required. Anyone can browse without signing in; posting and
+  managing a listing needs an account, so a seller sees their own ads in one
+  place instead of losing them when a browser is cleared.
+- **Public seller profiles** — name, area, bio, verified badge, join date and
+  live listings. Contact details stay on the individual ad where the seller
+  chose to publish them.
 - **Report an ad** with a reason, which lands in the admin moderation queue.
 - **Promoted ads** float to the top of default results, as on real classifieds sites.
 - **View counting** de-duplicated per visitor per day, so refreshing does not inflate it.
@@ -76,13 +108,18 @@ npx wrangler pages deploy
 **For the operator**
 
 - **Admin panel** with role-gated views: dashboard, listing management,
-  moderation queue, report triage, site settings and staff accounts.
+  moderation queue, member management, report triage, site settings and staff
+  accounts.
 - **Moderation controls** — approve, reject with a reason the seller sees,
   feature, edit or delete any listing.
-- **Spam controls** — configurable posting limit per IP per hour, a global
-  posting on/off switch, and an auto-approve toggle that routes new ads through
-  review.
-- **Audit log** recording who did what, including owner actions.
+- **Member controls** — verify a seller, suspend or reactivate an account,
+  reassign a listing to a different member, issue a new password, or delete an
+  account along with everything it owns.
+- **Spam controls** — configurable posting limit per member per hour and
+  sign-up limit per address per hour, a global posting on/off switch, and an
+  auto-approve toggle that routes new ads through review.
+- **Audit log** recording who did what, from sign-ins and registrations to
+  moderation and member actions.
 - **Rate-limit headers** (`x-ratelimit-*`) so well-behaved clients can back off.
 
 ---
@@ -140,12 +177,13 @@ over 2.5 MB that the server would happily have stored.
 
 | Data | Where | Why |
 |---|---|---|
-| Ads, categories, admin accounts, sessions, reports, settings | D1 (SQLite) | Relational, queryable, indexed |
+| Ads, members, categories, admin accounts, sessions, reports, settings | D1 (SQLite) | Relational, queryable, indexed |
 | Photos | R2 | Large objects, no egress fees |
-| Favourites, preferred division, owner tokens | `localStorage` | Personal to one browser; not worth a table |
+| Favourites, preferred division, recent searches | `localStorage` | Personal to one browser; not worth a table |
 
-Owner tokens are the one security-sensitive thing in `localStorage`, and only
-their SHA-256 hash is ever written to the database.
+Nothing security-sensitive lives in `localStorage`: sessions are `HttpOnly`
+cookies the page cannot read, and a listing belongs to a member row rather than
+to a token held in a browser.
 
 ---
 
@@ -155,21 +193,34 @@ Public:
 
 ```
 GET    /api/ads              list, filter, sort, paginate
-POST   /api/ads              create — returns a one-time owner token
+POST   /api/ads              create (signed-in members only)
 GET    /api/ads/:id          detail, including the seller's phone number
-PUT    /api/ads/:id          edit   (owner token or admin session)
-DELETE /api/ads/:id          remove (owner token or admin session)
+PUT    /api/ads/:id          edit   (the owning member, or an admin)
+DELETE /api/ads/:id          remove (the owning member, or an admin)
 POST   /api/ads/:id/view     count a view
 GET    /api/taxonomy         categories, breeds, divisions, areas
 GET    /api/facets           live counts for the sidebar filters
 GET    /api/stats            homepage counters
-POST   /api/upload           photo upload to R2
+POST   /api/upload           photo upload to R2 (signed-in members only)
 GET    /img/*                serve a photo
 POST   /api/reports          report an ad
+GET    /api/users/:id        a member's public profile and live listings
 ```
 
-Admin (`/api/admin/…`): `session`, `overview`, `ads`, `ads/:id`, `reports`,
-`settings`, `admins`, `admins/:id`.
+Accounts:
+
+```
+POST   /api/auth/register    create an account and sign in
+POST   /api/auth/login       sign in with phone number + password
+GET    /api/auth/session     who am I
+PATCH  /api/auth/session     edit my profile
+DELETE /api/auth/session     sign out
+PUT    /api/auth/password    change my password
+GET    /api/me/ads           my listings, including pending and rejected
+```
+
+Admin (`/api/admin/…`): `session`, `overview`, `ads`, `ads/:id`, `users`,
+`users/:id`, `reports`, `settings`, `admins`, `admins/:id`.
 
 Unknown `/api/*` paths return JSON, never the HTML 404 page — a
 `functions/api/[[path]].js` catch-all handles that, so a client parsing
@@ -184,8 +235,14 @@ Unknown `/api/*` paths return JSON, never the HTML 404 page — a
   the free plan while staying expensive to brute-force.
 - Sessions are random 256-bit tokens stored only as hashes, delivered in
   `HttpOnly; Secure; SameSite=Strict` cookies. **There is no session secret to
-  configure or leak.**
-- Ad ownership uses a one-time token; the server stores only its hash.
+  configure or leak.** Members and staff use separate cookies and separate
+  tables, so an admin session can never be mistaken for a member account.
+- A listing belongs to the member who posted it, and ownership is checked on
+  every write. Ownership is compared against the database row, not against a
+  token the browser holds, so clearing a cookie cannot hand a listing to
+  somebody else.
+- Repeat sign-in failures are counted per account and per address, and the
+  counter is cleared by a successful sign-in.
 - All SQL uses prepared statements with bound parameters.
 - Uploads are validated by **magic bytes**, not the client's claimed
   `Content-Type`, and served back with a fixed content type so a malicious file
@@ -208,8 +265,8 @@ Three suites, none of them mocked.
 | Command | Assertions | What it covers |
 |---|---|---|
 | `npm test` | 726 | Front-end logic under QuickJS |
-| `npm run test:api` | 225 | The API against a live server |
-| `npm run test:admin` | 49 | The admin panel in jsdom, against that same server |
+| `npm run test:api` | 360 | The API against a live server |
+| `npm run test:admin` | 71 | The admin panel in jsdom, against that same server |
 
 The API and admin suites need `npm run dev` running in another terminal first.
 
@@ -242,8 +299,8 @@ QJS=/path/to/qjs npm test
 
 `test:api` boots Wrangler, talks to it over HTTP and sends real multipart
 uploads, so it exercises real D1, real PBKDF2, real cookies and real R2. It
-resets rate limits and test ads before starting and restores the posting limit
-when it finishes.
+registers throwaway member accounts, resets rate limits and test data before
+starting, and restores the posting and sign-up limits when it finishes.
 
 That suite earns its keep: it caught a bug where `?sold=1` returned nothing
 because the status filter was overriding it, and the limit-agreement check was

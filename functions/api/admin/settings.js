@@ -16,6 +16,7 @@ const SCHEMA = {
   posting_enabled:   { type: 'bool' },
   listings_per_page: { type: 'int', min: 4, max: 48 },
   post_limit:        { type: 'int', min: 1, max: 100 },
+  signup_limit:      { type: 'int', min: 1, max: 200 },
 };
 
 export async function onRequestGet({ request, env }) {

@@ -422,9 +422,76 @@
     group?.classList.remove('field-error');
   }, true);
 
+  /* ------------------------------------------------------- account prefill */
+
+  /** Types into a field and lets the existing listener keep `draft` in sync. */
+  function setField(selector, value) {
+    const el = $(selector);
+    if (!el || el.value || !value) return;
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  /**
+   * Fills the contact block from the signed-in member's account, so the last
+   * step of the wizard is usually already done. Anything the visitor has
+   * already typed wins.
+   */
+  function prefillContact() {
+    const u = API.user;
+    if (!u) return;
+
+    setField('#fName', u.name);
+    setField('#fPhone', u.phone);
+    setField('#fEmail', u.email);
+
+    const locPick = $('#fLocPick');
+    if (locPick && !locPick.value && u.loc && PB.locById(u.loc)) {
+      locPick.value = u.loc;
+      locPick.dispatchEvent(new Event('change', { bubbles: true }));
+      if (u.area) {
+        const area = $('#fArea');
+        if (area && !area.value) {
+          area.value = u.area;
+          area.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    }
+  }
+
   /* ---------------------------------------------------------------- init */
 
   renderSteps();
   syncPriceField();
   renderPhotos();
+
+  /**
+   * Posting is tied to an account, so an anonymous visitor gets a sign-in
+   * panel rather than a wizard that would be rejected at the last step.
+   *
+   * A deploy with no backend has no accounts at all, so the local-only wizard
+   * stays available there — those ads live in the browser.
+   */
+  API.ready.then(() => {
+    if (!API.available || API.user) {
+      prefillContact();
+      return;
+    }
+
+    $('#steps').classList.add('hide');
+    $('#adForm').classList.add('hide');
+
+    const gate = $('#postGate');
+    gate.classList.remove('hide');
+    gate.innerHTML = `<div class="card acct-section" style="text-align:center;max-width:520px;margin:10px auto 30px">
+      <div style="font-size:42px">🔐</div>
+      <h2 style="margin:8px 0">Sign in to post your ad</h2>
+      <p class="hint">Listings belong to a PetBikroy account, so you can edit
+      them, mark them sold and take them down whenever you like.</p>
+      <div class="row gap-8" style="justify-content:center">
+        <a class="btn btn-primary" href="login.html?next=post.html">Sign in</a>
+        <a class="btn btn-outline" href="register.html?next=post.html">Create an account</a>
+      </div>
+    </div>`;
+  });
 })();

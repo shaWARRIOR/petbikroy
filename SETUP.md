@@ -14,10 +14,10 @@ and what to do when something goes wrong.
 
 | Piece | Where it lives | What Cloudflare calls it |
 |---|---|---|
-| Front end (7 pages) | `public/` | Pages static assets |
+| Front end (11 pages) | `public/` | Pages static assets |
 | Admin panel | `public/admin/` | Pages static assets |
-| API (19 routes) | `functions/` | Pages Functions |
-| Database (12 tables) | `db/schema.sql` | D1 |
+| API (25 route files) | `functions/` | Pages Functions |
+| Database (13 tables) | `db/schema.sql` | D1 |
 | Photo storage | — | R2 |
 
 `functions/` is *not* served as files. Cloudflare compiles it into a Worker and
@@ -28,22 +28,35 @@ routes requests to it. Only `public/` is ever downloadable, which is why
 
 ```
 GET    /api/ads              list, filter, sort, paginate
-POST   /api/ads              create (returns a one-time owner token)
+POST   /api/ads              create (signed-in members only)
 GET    /api/ads/:id          detail, including the seller's phone number
-PUT    /api/ads/:id          edit   (owner token or admin session)
-DELETE /api/ads/:id          remove (owner token or admin session)
+PUT    /api/ads/:id          edit   (the owning member, or an admin session)
+DELETE /api/ads/:id          remove (the owning member, or an admin session)
 POST   /api/ads/:id/view     count a view (de-duplicated per visitor per day)
 GET    /api/taxonomy         categories, breeds, divisions, areas
 GET    /api/facets           live counts for the sidebar filters
 GET    /api/stats            homepage counters
-POST   /api/upload           photo upload to R2
+POST   /api/upload           photo upload to R2 (signed-in members only)
 GET    /img/*                serve a photo from R2
 POST   /api/reports          report an ad
+GET    /api/users/:id        a member's public profile and live listings
+
+POST   /api/auth/register    create an account and sign in
+POST   /api/auth/login       sign in with phone number + password
+GET    /api/auth/session     who am I
+PATCH  /api/auth/session     edit my profile
+DELETE /api/auth/session     sign out
+PUT    /api/auth/password    change my password
+GET    /api/me/ads           my listings, pending and rejected included
 
 POST   /api/admin/session    sign in / out
 GET    /api/admin/overview   dashboard numbers
 GET    /api/admin/ads        every ad, any status
-PUT    /api/admin/ads/:id    approve, reject, feature, edit
+PUT    /api/admin/ads/:id    approve, reject, feature, edit, reassign
+GET    /api/admin/users      member list: search, filter, paginate
+GET    /api/admin/users/:id  one member, with every listing they own
+PATCH  /api/admin/users/:id  verify, suspend, reactivate, reset password
+DELETE /api/admin/users/:id  delete the account and everything it owns
 GET    /api/admin/reports    the report queue
 PUT    /api/admin/reports    resolve or dismiss a report
 GET|PUT /api/admin/settings  site settings
@@ -51,7 +64,22 @@ GET|POST /api/admin/admins   staff accounts
 PUT|DELETE /api/admin/admins/:id
 ```
 
-### How admin login works
+### How sign-in works
+
+There are two kinds of account, and they are deliberately kept apart:
+
+| | Member | Staff |
+|---|---|---|
+| Signs in with | phone number | email address |
+| Cookie | `pb_user` | `pb_admin` |
+| Stored in | `users` | `admins` |
+| Can | post and manage their own listings | moderate everything |
+
+They use separate cookies and separate tables, so signing into the admin panel
+does not sign you out of the site as a member, and a bug in a role check cannot
+turn a member account into staff.
+
+Anyone can browse without an account. Posting, editing and deleting need one.
 
 There is no session secret to configure. Passwords are hashed with PBKDF2-SHA256
 (25,000 iterations) and a per-account salt; session tokens are random 256-bit
@@ -59,13 +87,15 @@ values, stored in the database as SHA-256 hashes and delivered in an
 `HttpOnly; Secure; SameSite=Strict` cookie. Nothing sensitive is stored in
 plain text anywhere, so there is no key to leak or rotate.
 
-### How "my ads" works without user accounts
+### Password resets
 
-Buyers and sellers never register. When someone posts an ad, `POST /api/ads`
-returns a one-time **owner token**. The browser keeps it in `localStorage` and
-sends it back in the `x-owner-token` header to edit or delete that one ad. The
-server stores only its SHA-256 hash, so a database dump cannot be used to take
-over listings. An admin session can also manage any ad.
+This site never sends email, so a member who forgets their password cannot reset
+it themselves. Instead, an administrator opens **Members**, finds the account,
+and presses **Reset password**. The panel shows a new password exactly once —
+read it out to the member and it is done. Nothing stores the plain text, so if
+it is lost you simply issue another.
+
+Anyone holding a session for that account is signed out by the reset.
 
 ---
 
@@ -117,10 +147,11 @@ npx wrangler d1 create petbikroy
 # 4. Create the photo bucket (enable R2 in the dashboard first — see below)
 npx wrangler r2 bucket create petbikroy-images
 
-# 5. Create the 12 tables
+# 5. Create the 13 tables
 npx wrangler d1 execute petbikroy --remote --file=db/schema.sql
 
 # 6. Optional: load the demo catalogue so the site launches with content
+#    (34 listings posted by 24 demo members — see the password warning below)
 npx wrangler d1 execute petbikroy --remote --file=db/seed.sql
 
 # 7. Create your admin account
@@ -141,6 +172,11 @@ Step 9 prints your live URL, something like
 > **R2** and accept the terms (it asks for a payment method). Without this,
 > step 4 fails and photo uploads will not work — though the rest of the site
 > will still run, since every listing falls back to generated artwork.
+
+> **Step 6 publishes a password.** Every seeded member signs in with
+> `petbikroy123`, and that password is in this repository. It is perfect for
+> exploring the site and unacceptable on a live one — see
+> [Step 5](#step-5--load-the-demo-catalogue-optional) for how to remove them.
 
 ---
 
@@ -194,7 +230,7 @@ is `IMAGES` — that is the name your code sees as `env.IMAGES`.
 npx wrangler d1 execute petbikroy --remote --file=db/schema.sql
 ```
 
-This creates 12 tables with `CREATE TABLE IF NOT EXISTS`, so running it twice is
+This creates 13 tables with `CREATE TABLE IF NOT EXISTS`, so running it twice is
 harmless. Confirm it worked:
 
 ```bash
@@ -204,7 +240,7 @@ npx wrangler d1 execute petbikroy --remote \
 
 You should see: `admins`, `ads`, `ad_photos`, `areas`, `audit_log`,
 `categories`, `locations`, `rate_limits`, `reports`, `sessions`, `settings`,
-`subcategories`.
+`subcategories`, `users`.
 
 ### Step 5 — Load the demo catalogue (optional)
 
@@ -212,17 +248,31 @@ You should see: `admins`, `ads`, `ad_photos`, `areas`, `audit_log`,
 npx wrangler d1 execute petbikroy --remote --file=db/seed.sql
 ```
 
-Gives you 10 categories, 73 breeds, 8 divisions, 41 areas, 34 sample ads and the
-default settings. Without it the site works but shows empty states everywhere.
+Gives you 10 categories, 73 breeds, 8 divisions, 41 areas, 24 member accounts,
+34 sample ads and the default settings. Without it the site works but shows
+empty states everywhere.
 
 **Safe to re-run.** Every statement is `INSERT OR REPLACE` keyed on ids like
-`seed-1`, so it refreshes the demo rows and leaves ads posted by real users
-untouched. To remove the demo catalogue later:
+`seed-1` (ads) and `u-seed-rakib-hasan` (members), so it refreshes the demo rows
+and leaves listings posted by real users untouched. To remove the demo
+catalogue later:
 
 ```bash
 npx wrangler d1 execute petbikroy --remote \
   --command="DELETE FROM ads WHERE id LIKE 'seed-%'"
+npx wrangler d1 execute petbikroy --remote \
+  --command="DELETE FROM users WHERE id LIKE 'u-seed-%'"
 ```
+
+Deleting a member takes their listings with them, so the two commands above
+overlap — running just the second one is usually enough.
+
+> **The seeded members share one password: `petbikroy123`.** Pick any number
+> from `db/seed.sql` (for example `01311000000`, Rakib Hasan) and sign in at
+> `/login.html`. That is very convenient for exploring the site as a seller and
+> completely unacceptable on a public deployment — before you announce the site,
+> either delete the seeded members with the command above, or reset their
+> passwords from **Members** in the admin panel.
 
 `db/seed.sql` is generated from `public/assets/js/data.js` by
 `npm run seed:build`. Edit the JavaScript, regenerate, re-apply.
@@ -249,8 +299,9 @@ The tool imports the *same* hashing code the API uses, so there is no chance of
 the two drifting apart. Re-running it with an existing email resets that
 account's password.
 
-Moderators can approve, reject and edit ads but cannot change settings or manage
-staff accounts — those stay admin-only.
+Moderators can approve, reject and edit ads, verify and unverify members, and
+work the reports queue. They cannot change settings, manage staff accounts,
+suspend a member, reset a password or delete an account — those stay admin-only.
 
 ### Step 7 — Deploy
 
@@ -285,12 +336,16 @@ tab shows real numbers.
 
 Before you announce the site, walk through this once:
 
-1. Post an ad from `/post.html` with a couple of photos.
-2. Confirm it appears on `/listings.html` and that the photos render.
-3. Open it and press **Show phone number** — the number you typed should appear.
-4. Open `/my-ads.html`, edit the ad, mark it sold, then put it back.
-5. In `/admin/`, find the ad under **Listings**, try **Reject** with a reason,
+1. Register at `/register.html` with a real-looking phone number.
+2. Post an ad from `/post.html` with a couple of photos.
+3. Confirm it appears on `/listings.html` and that the photos render.
+4. Open it and press **Show phone number** — the number you signed up with
+   should appear. Your name should link to your seller page.
+5. Open `/my-ads.html`, edit the ad, mark it sold, then put it back.
+6. In `/admin/`, find the ad under **Listings**, try **Reject** with a reason,
    then check `/my-ads.html` shows you that reason.
+7. Open **Members**, find your new account, and press **Reset password** to
+   confirm the one-time password is displayed.
 
 ---
 
@@ -363,10 +418,14 @@ this API from a different origin. Same-origin requests are always allowed.
 ```bash
 npm install
 npm run db:schema        # create the tables in the local database
-npm run db:seed          # load the demo catalogue
+npm run db:seed          # load the demo catalogue and 24 demo members
 npm run admin:new -- --email admin@local.test --password 'correct-horse-battery'
 npm run dev              # http://localhost:8788
 ```
+
+Sign in at `/login.html` as `01311000000` with the password `petbikroy123` to
+see the site as a seller; sign in at `/admin/` with the admin account you just
+created. The two are separate accounts and can be signed in at the same time.
 
 `npm run dev` starts `wrangler pages dev`, which runs your real Functions against
 a real D1 database and a real R2 bucket — emulated on disk under
@@ -390,12 +449,14 @@ production: it lives in that folder, and the `--local` flag (the default for the
 | Command | What it runs |
 |---|---|
 | `npm test` | Front-end suite, 726 assertions, under QuickJS — no browser, no Node APIs |
-| `npm run test:api` | 218 assertions against a **live** server: real D1, real PBKDF2, real cookies, real R2 |
-| `npm run test:admin` | 49 assertions driving the admin panel in jsdom against that same live server |
+| `npm run test:api` | 360 assertions against a **live** server: real D1, real PBKDF2, real cookies, real R2 |
+| `npm run test:admin` | 71 assertions driving the admin panel in jsdom against that same live server |
 
 The API and admin suites need the dev server running first (`npm run dev` in
-another terminal). `test:api` resets rate limits and test ads before it starts
-and restores the posting limit when it finishes.
+another terminal). `test:api` registers throwaway member accounts, clears rate
+limits, login counters and leftover test data before it starts, and restores the
+posting and sign-up limits when it finishes. It never touches production data —
+the reset is skipped entirely for a non-local target.
 
 Neither suite is a mock. `test:api` boots Wrangler, talks to it over HTTP, and
 sends real multipart uploads — which is how a genuine bug was caught where
@@ -415,15 +476,16 @@ passes there does not break in a browser with a reduced locale set.
 
 ## Using the admin panel
 
-Sign in at `/admin/`. It is a single page with six views:
+Sign in at `/admin/`. It is a single page with seven views:
 
 | View | What you do there |
 |---|---|
 | **Overview** | Listings by status, daily posting volume, recent reports and audit trail |
-| **Listings** | Every ad regardless of status. Approve, reject with a reason, feature, edit, delete |
+| **Listings** | Every ad regardless of status. Approve, reject with a reason, feature, edit, delete, reassign to another member |
 | **Moderation** | The review queue — ads whose status is `pending` or `rejected` |
+| **Members** | Every account: search by name, phone or email, filter by state, then verify, suspend, reactivate, reset a password or delete |
 | **Reports** | Ads users have flagged, with the reason and note |
-| **Settings** | Site name, contact email, listings per page, posting on/off, auto-approve, posting limit |
+| **Settings** | Site name, contact email, listings per page, posting on/off, auto-approve, posting and sign-up limits |
 | **Team** | Staff accounts and roles |
 
 Settings worth knowing:
@@ -432,9 +494,23 @@ Settings worth knowing:
   off and every ad lands in **Moderation** first. This is the switch to flip if
   you start getting spam.
 - **posting_enabled** — set to `0` to freeze new ads without taking the site down.
-- **post_limit** (default 10) — ads allowed per IP per hour. Surfaced to clients
-  in the `x-ratelimit-limit`, `x-ratelimit-remaining` and `x-ratelimit-reset`
-  response headers, so a well-behaved client can back off before it is refused.
+- **post_limit** (default 10) — ads one member may publish per hour. Surfaced to
+  clients in the `x-ratelimit-limit`, `x-ratelimit-remaining` and
+  `x-ratelimit-reset` response headers, so a well-behaved client can back off
+  before it is refused.
+- **signup_limit** (default 10) — accounts one address may create per hour.
+  Raise it if your users sit behind a shared or carrier-NAT address.
+
+### Handling members
+
+| Situation | What to do |
+|---|---|
+| A seller is genuine and you want to say so | **Members → Verify** — the badge appears on their ads and profile |
+| Somebody is posting spam | **Members → Suspend**. They are signed out at once and cannot sign back in; their listings stay until you remove them |
+| A seller lost their password | **Members → Reset password** and read the new one out. There is no email delivery, so this is the only way back in |
+| A listing is under the wrong account | **Listings → Open → Reassign**, and pick the right member |
+| Somebody asks to be deleted | **Members → Delete** removes the account, its listings, their photos and its reports |
+| The reviews are awful | Turn **auto_approve** off, then work the **Moderation** queue |
 
 The panel is behind a login, but it is not invisible: `/admin/` is reachable and
 returns the page before you sign in. That is normal for an admin panel. If you
@@ -453,9 +529,14 @@ nothing for up to 50 users and takes about two minutes.
   The iteration count is tuned to fit Cloudflare's ~10 ms CPU budget on the
   free plan while still being expensive to brute-force.
 - Sessions: random 256-bit tokens, stored only as hashes, `HttpOnly` + `Secure`
-  + `SameSite=Strict` cookies.
-- Owner tokens for ad editing: stored only as hashes, never returned again after
-  creation.
+  + `SameSite=Strict` cookies. Members and staff use separate cookies and
+  separate tables, so one can never be mistaken for the other.
+- Ad ownership is a column on the ad, checked against the session on every
+  write. There is no token in the browser that could be replayed or stolen to
+  take over a listing.
+- Repeat sign-in failures are counted per account *and* per address, and the
+  counter is cleared by a successful sign-in.
+- Uploads require a member session, so anonymous scripts cannot fill the bucket.
 - All SQL uses prepared statements with bound parameters.
 - Uploads are checked by magic bytes, not by the `Content-Type` the client
   claims, capped at 5 MB across 6 photos per ad, and served back with a fixed
@@ -468,16 +549,21 @@ nothing for up to 50 users and takes about two minutes.
   There is no inline script anywhere in the project.
 - The admin panel is marked `noindex` and the API sends `X-Robots-Tag: noindex`
   so search engines do not crawl moderation screens.
+- The public seller profile deliberately omits the phone number and email. A
+  buyer gets the number from the individual ad, not from a page that lists every
+  seller on the site.
 
 **What is up to you.**
 
 1. **Change the admin password** from whatever you used during setup.
-2. **Add a second admin** under **Team** and keep one as a spare, so a lost
+2. **Deal with the demo members**, if you seeded them: either delete them or
+   reset their passwords. `petbikroy123` is in this repository.
+3. **Add a second admin** under **Team** and keep one as a spare, so a lost
    password does not lock you out. (If it does happen, re-run
    `tools/create-admin.mjs` with `--remote`.)
-3. **Turn off auto_approve** once the site has real traffic and you want a human
+4. **Turn off auto_approve** once the site has real traffic and you want a human
    to see listings before they go live.
-4. **Consider Cloudflare Access** on `/admin`, as described above.
+5. **Consider Cloudflare Access** on `/admin`, as described above.
 
 ---
 
@@ -508,13 +594,32 @@ The session cookie is `Secure`, so it is only sent over HTTPS. Use the real
 a secure context, which is why local sign-in works.
 
 **`429 Too Many Requests` while testing**
-You hit the posting limit (default 10 per IP per hour). Raise it in
-Settings, or reset it directly:
+You hit the posting limit (default 10 per member per hour) or the sign-up limit
+(default 10 per address per hour). Raise either in Settings, or reset the
+counters directly:
 
 ```bash
 npx wrangler d1 execute petbikroy --remote \
   --command="DELETE FROM rate_limits"
 ```
+
+**A member signed in but cannot post**
+Check the account has not been suspended: **Members** in the admin panel, look
+for a red `suspended` badge. Suspending an account signs it out and blocks
+sign-in immediately.
+
+**A member typed their password wrong too many times**
+Eight failures in fifteen minutes, from one account or one address, is refused
+with a `429` until the window passes. Clear it early with:
+
+```bash
+npx wrangler d1 execute petbikroy --remote \
+  --command="DELETE FROM audit_log WHERE action = 'user.login.failed'"
+```
+
+**"An account with that phone number already exists"**
+Phone numbers are the login identifier, so they are unique. Sign in instead, or
+reset the existing account's password from **Members**.
 
 **A deploy fails complaining about environment overrides**
 `vars`, `d1_databases` and `r2_buckets` are *non-inheritable*. If you add an
@@ -529,9 +634,16 @@ shows those fields for information only. Edit `wrangler.toml` and redeploy — o
 remove that one line to hand control back to the dashboard.
 
 **Seed data will not delete**
-Demo rows are the ones whose id starts with `seed-`:
-`DELETE FROM ads WHERE id LIKE 'seed-%'`. Photo and report rows are removed
-automatically by `ON DELETE CASCADE`. Saved ads live in the browser, not the
+Demo ads are the ones whose id starts with `seed-`, and demo members those whose
+id starts with `u-seed-`:
+
+```bash
+DELETE FROM ads   WHERE id LIKE 'seed-%';
+DELETE FROM users WHERE id LIKE 'u-seed-%';
+```
+
+Deleting a member cascades to their listings, photos and reports, so the second
+command is usually enough on its own. Saved ads live in the browser, not the
 database, so nothing else needs clearing.
 
 ---
@@ -544,26 +656,31 @@ package.json                  scripts + the two dev dependencies
 
 public/                       ← everything served to visitors
   index.html  listings.html  ad.html  post.html  my-ads.html
-  favorites.html  404.html
+  favorites.html            saved ads (browser-local)
+  login.html  register.html  account.html  seller.html
+  404.html
   admin/index.html            the admin panel
   assets/css/styles.css       design tokens, layout, components
   assets/js/data.js           taxonomy + seed catalogue + localStorage layer
   assets/js/app.js            shared chrome: header, footer, icons, ad cards
   assets/js/api.js            the data layer every page talks to
   assets/js/wizard.js         post-an-ad rules as pure, testable functions
-  assets/js/{home,listings,ad,post,my-ads,favorites,not-found}.js
+  assets/js/{home,listings,ad,post,my-ads,favorites,
+             login,register,account,seller,not-found}.js
   _headers                    CSP and security headers
   _routes.json                which paths invoke Functions
 
 functions/                    ← compiled into a Worker, never downloadable
-  _lib/{http,auth,validate,db,mappers,ads}.js
-  api/{ads,taxonomy,stats,facets,upload,reports,img}/
-  api/admin/{session,overview,ads,settings,admins,reports}
+  _lib/{http,auth,validate,db,mappers,ads,users}.js
+  api/{ads,users,taxonomy,stats,facets,upload,reports,img}/
+  api/auth/{register,login,session,password}.js
+  api/me/ads.js
+  api/admin/{session,overview,ads,settings,admins,users,reports}
   api/[[path]].js             JSON 404, so a bad /api path never returns HTML
 
-db/schema.sql                 12 tables, CHECK constraints, indexes
+db/schema.sql                 13 tables, CHECK constraints, indexes
 db/seed.sql                   GENERATED — run `npm run seed:build` to rebuild
-tools/generate-seed.mjs       data.js  ->  seed.sql
+tools/generate-seed.mjs       data.js  ->  seed.sql (members and their ads)
 tools/create-admin.mjs        create or re-password an admin account
 tests/                        three suites, described above
 ```

@@ -46,7 +46,9 @@ run "post-ad wizard"     "$QJS" --std tests/test-wizard.js
 printf '\n\033[1m── generated artwork + html structure ──\033[0m\n'
 "$QJS" --std tests/dump-svgs.js || fail=1
 python3 tests/validate.py public/index.html public/listings.html public/ad.html \
-    public/post.html public/my-ads.html public/favorites.html || fail=1
+    public/post.html public/my-ads.html public/favorites.html \
+    public/login.html public/register.html public/account.html \
+    public/seller.html || fail=1
 
 run "links + assets"     python3 tests/links.py
 

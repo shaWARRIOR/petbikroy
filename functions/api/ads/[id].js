@@ -1,35 +1,38 @@
 /* ==========================================================================
    /api/ads/:id
      GET    — public ad detail
-     PUT    — update my ad (needs the owner token, or an admin session)
-     DELETE — remove my ad (needs the owner token, or an admin session)
+     PUT    — edit   (the member who posted it, or any signed-in moderator)
+     DELETE — remove (the member who posted it, or any signed-in moderator)
 
-   Ownership without accounts: POST /api/ads returns a one-time `ownerToken`;
-   the browser stores it and sends it back in `x-owner-token` to prove
-   ownership. Only its SHA-256 lives in the database.
+   Ownership is by account: `ads.user_id` names the member who posted it.
+   Staff keep override rights so moderation never depends on a seller
+   cooperating.
    ========================================================================== */
 
 import {
   json, readJson, handleError, notFound, forbidden, unauthorized,
-  corsHeaders, nowIso, HttpError, clientIp,
+  corsHeaders, nowIso, clientIp,
 } from '../../_lib/http.js';
-import { loadTaxonomy, getSettings, isOn, rateLimit } from '../../_lib/db.js';
+import { loadTaxonomy, rateLimit } from '../../_lib/db.js';
 import { validateAd, assertValid } from '../../_lib/validate.js';
-import { fetchPhotos, setPhotos, fetchPhotoMap } from '../../_lib/ads.js';
-import { toPublicAd, toPublicAdDetail } from '../../_lib/mappers.js';
-import { getSession, ownerTokenMatches, recordAudit } from '../../_lib/auth.js';
+import { fetchPhotos, setPhotos } from '../../_lib/ads.js';
+import { toPublicAdDetail } from '../../_lib/mappers.js';
+import {
+  getAdminSession, getUserSession, recordAudit,
+} from '../../_lib/auth.js';
 
 /** Loads the ad plus whatever authority the caller has over it. */
 async function loadAdWithAccess(env, request, id) {
   const row = await env.DB.prepare('SELECT * FROM ads WHERE id = ?').bind(id).first();
   if (!row) throw notFound('That ad does not exist.');
 
-  const admin = await getSession(env, request);
-  if (admin) return { row, admin, owner: true };
+  const [admin, user] = await Promise.all([
+    getAdminSession(env, request),
+    getUserSession(env, request),
+  ]);
 
-  const token = request.headers.get('x-owner-token') || '';
-  const owner = await ownerTokenMatches(token, row.owner_token_hash);
-  return { row, admin: null, owner };
+  const owner = Boolean(user && user.id === row.user_id);
+  return { row, admin, user, owner, canManage: Boolean(admin || owner) };
 }
 
 export async function onRequestGet({ request, env, params }) {
@@ -38,12 +41,13 @@ export async function onRequestGet({ request, env, params }) {
       .bind(params.id).first();
     if (!row) throw notFound('That ad does not exist.');
 
-    const admin = await getSession(env, request);
-    const token = request.headers.get('x-owner-token') || '';
-    const owner = await ownerTokenMatches(token, row.owner_token_hash);
-    const canManage = Boolean(admin || owner);
+    const [admin, user] = await Promise.all([
+      getAdminSession(env, request),
+      getUserSession(env, request),
+    ]);
+    const canManage = Boolean(admin || (user && user.id === row.user_id));
 
-    // Draft or rejected ads are visible only to their owner or an admin.
+    // Draft or rejected ads are visible only to their owner or a moderator.
     if (row.status !== 'active' && row.status !== 'sold' && !canManage) {
       throw notFound('That ad does not exist.');
     }
@@ -66,15 +70,14 @@ export async function onRequestGet({ request, env, params }) {
 
 export async function onRequestPut({ request, env, params }) {
   try {
-    const { row, admin, owner } = await loadAdWithAccess(env, request, params.id);
+    const { row, admin, user, canManage } = await loadAdWithAccess(env, request, params.id);
 
-    if (!admin && !owner) {
-      throw admin === null && !owner
-        ? unauthorized('Only the person who posted this ad can edit it.')
-        : forbidden();
+    if (!canManage) {
+      if (!user) throw unauthorized('Sign in to your account to edit this ad.');
+      throw forbidden('Only the member who posted this ad can edit it.');
     }
 
-    await rateLimit(env, `edit:${clientIp(request)}`, 30, 3600);
+    await rateLimit(env, `edit:${user?.id || clientIp(request)}`, 30, 3600);
 
     const body = await readJson(request, 48 * 1024);
     const taxonomy = await loadTaxonomy(env);
@@ -121,8 +124,8 @@ export async function onRequestPut({ request, env, params }) {
     }
 
     await recordAudit(env, {
-      actorId: admin?.id ?? null,
-      actorEmail: admin?.email ?? 'owner',
+      actorId: admin?.id ?? user?.id ?? null,
+      actorEmail: admin?.email ?? user?.phone ?? '',
       action: admin ? 'ad.updated.admin' : 'ad.updated.owner',
       targetType: 'ad', targetId: params.id,
       detail: status !== row.status ? `${ad.title} -> ${status}` : ad.title,
@@ -134,7 +137,7 @@ export async function onRequestPut({ request, env, params }) {
 
     return json({
       ad: toPublicAdDetail(updated, photos, { canManage: true }),
-      rejectionReason: row.rejection_reason || '',
+      rejectionReason: updated.rejection_reason || '',
     });
   } catch (e) {
     return handleError(e, request, env);
@@ -143,9 +146,10 @@ export async function onRequestPut({ request, env, params }) {
 
 export async function onRequestDelete({ request, env, params }) {
   try {
-    const { row, admin, owner } = await loadAdWithAccess(env, request, params.id);
-    if (!admin && !owner) {
-      throw unauthorized('Only the person who posted this ad can delete it.');
+    const { row, admin, user, canManage } = await loadAdWithAccess(env, request, params.id);
+    if (!canManage) {
+      if (!user) throw unauthorized('Sign in to your account to delete this ad.');
+      throw forbidden('Only the member who posted this ad can delete it.');
     }
 
     // Clean up the R2 objects before dropping the rows that reference them.
@@ -161,8 +165,8 @@ export async function onRequestDelete({ request, env, params }) {
     }
 
     await recordAudit(env, {
-      actorId: admin?.id ?? null,
-      actorEmail: admin?.email ?? 'owner',
+      actorId: admin?.id ?? user?.id ?? null,
+      actorEmail: admin?.email ?? user?.phone ?? '',
       action: admin ? 'ad.deleted.admin' : 'ad.deleted.owner',
       targetType: 'ad', targetId: params.id, detail: row.title,
     });

@@ -8,6 +8,7 @@ node_modules/
 # test artifacts
 tests/.svgs.txt
 tests/.api-results.json
+__pycache__/
 
 # OS noise
 .DS_Store

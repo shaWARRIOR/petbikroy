@@ -28,6 +28,9 @@
     </div>
     <p class="muted">Five quick steps. Your ad goes live immediately.</p>
 
+    <!-- Shown instead of the wizard when nobody is signed in. -->
+    <div id="postGate" class="hide"></div>
+
     <!-- Steps indicator -->
     <div class="steps" id="steps" role="list"></div>
 
@@ -180,6 +183,9 @@
               <input class="input" id="fPhone" placeholder="01XXXXXXXXX" inputmode="tel" autocomplete="tel">
               <span class="err-msg" id="err-phone">Enter a valid Bangladeshi mobile number (11 digits starting 01).</span>
             </div>
+          </div>
+          <div class="hint" style="margin-top:-8px">
+            Prefilled from your account. Change it if a different number suits this ad.
           </div>
 
           <div class="field">

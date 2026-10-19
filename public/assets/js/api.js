@@ -8,38 +8,21 @@
    Everything the pages need goes through here, so a page never has to know
    which of the two backends answered.
 
-   Ownership without accounts
-   --------------------------
-   POST /api/ads returns a one-time `ownerToken`. We keep it in localStorage
-   alongside the ad id; sending it back in `x-owner-token` is what proves the
-   right to edit or delete that listing. The server only ever stores its hash.
+   Accounts
+   --------
+   Members sign in with a phone number and a password. The session lives in an
+   HttpOnly cookie, so nothing here ever handles a credential beyond handing
+   it to /api/auth/login and forgetting it. `API.user` holds the signed-in
+   member (or null) for the whole page.
+
+   Listings belong to accounts, so "can I edit this?" is a comparison of ids
+   rather than a secret token kept in localStorage.
    ========================================================================== */
 
 window.API = (() => {
   'use strict';
 
-  const MINE_KEY = 'pb.v1.mine';
   const PROBE_TIMEOUT = 2500;
-
-  /* ------------------------------------------------------------- storage */
-
-  function readJson(key, fallback) {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw === null ? fallback : JSON.parse(raw);
-    } catch {
-      return fallback;
-    }
-  }
-
-  function writeJson(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      return true;
-    } catch {
-      return false;
-    }
-  }
 
   /* --------------------------------------------------------------- utils */
 
@@ -58,23 +41,20 @@ window.API = (() => {
     return out.toString();
   }
 
-  const delay = ms => new Promise(r => setTimeout(r, ms));
-
-  /* ---------------------------------------------------------------- core */
-
   const API = {
     /** True once a successful call to /api/stats has happened. */
     available: false,
+    /** True once init() has finished, so the UI knows the probe has settled. */
+    settled: false,
     /** Populated by init() so pages can render before their own fetch lands. */
     stats: null,
+    /** The signed-in member, or null. Populated by init(). */
+    user: null,
 
     /* ------------------------------------------------------------- probe */
 
-    /**
-     * Decides whether the API is usable. Never throws — a static-only deploy
-     * is a supported way to run this site.
-     */
-    async init() {
+    /** Decides whether the API is usable. Never throws. */
+    async probe() {
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT);
@@ -85,17 +65,30 @@ window.API = (() => {
         });
         clearTimeout(timer);
 
-        if (!res.ok) return (this.available = false);
+        if (!res.ok) return false;
 
         const type = res.headers.get('content-type') || '';
-        if (!type.includes('application/json')) return (this.available = false);
+        if (!type.includes('application/json')) return false;
 
         this.stats = await res.json();
-        this.available = true;
+        return true;
       } catch {
-        this.available = false;
+        return false;
       }
-      return this.available;
+    },
+
+    /**
+     * Probes the API and loads the current session at the same time, so a
+     * signed-in visitor pays one round trip rather than two.
+     */
+    async init() {
+      const [available] = await Promise.all([this.probe(), this.refreshUser()]);
+      this.available = available;
+      // Without an API there are no accounts at all, and the offline
+      // catalogue takes over completely.
+      if (!available) this.user = null;
+      this.settled = true;
+      return available;
     },
 
     /** Low-level JSON call. Throws API.Error with `.details` on 4xx. */
@@ -120,6 +113,70 @@ window.API = (() => {
         throw err;
       }
       return data ?? {};
+    },
+
+    /* -------------------------------------------------------------- account */
+
+    /** @returns {object|null} the signed-in member, refreshed from the server. */
+    async refreshUser() {
+      try {
+        const data = await this.request('GET', '/api/auth/session');
+        this.user = data.user || null;
+      } catch {
+        this.user = null;
+      }
+      return this.user;
+    },
+
+    isSignedIn() {
+      return Boolean(this.user);
+    },
+
+    /** True when the caller may edit or delete this ad. */
+    ownsAd(ad) {
+      return Boolean(ad && this.user && ad.seller && ad.seller.id === this.user.id);
+    },
+
+    /**
+     * Creates an account and signs in.
+     * @returns {object} the new member
+     */
+    async register(profile) {
+      if (!this.available) {
+        throw new Error('Creating an account needs the live site.');
+      }
+      const data = await this.request('POST', '/api/auth/register', profile);
+      this.user = data.user || null;
+      return this.user;
+    },
+
+    /** Signs in with a phone number and password. */
+    async login(phone, password) {
+      if (!this.available) {
+        throw new Error('Signing in needs the live site.');
+      }
+      const data = await this.request('POST', '/api/auth/login', { phone, password });
+      this.user = data.user || null;
+      return this.user;
+    },
+
+    async logout() {
+      if (!this.available) return;
+      try {
+        await this.request('DELETE', '/api/auth/session');
+      } catch { /* signing out locally is enough */ }
+      this.user = null;
+    },
+
+    /** Saves profile edits. */
+    async updateProfile(patch) {
+      const data = await this.request('PATCH', '/api/auth/session', patch);
+      this.user = data.user || this.user;
+      return this.user;
+    },
+
+    async changePassword(currentPassword, newPassword) {
+      return this.request('PUT', '/api/auth/password', { currentPassword, newPassword });
     },
 
     /* -------------------------------------------------------- public reads */
@@ -170,8 +227,7 @@ window.API = (() => {
         return ad ? { ad, offline: true } : null;
       }
       try {
-        const data = await this.request('GET', `/api/ads/${encodeURIComponent(id)}`,
-                                        undefined, this.ownerHeader(id));
+        const data = await this.request('GET', `/api/ads/${encodeURIComponent(id)}`);
         return {
           ad: data.ad,
           rejectionReason: data.rejectionReason || '',
@@ -202,6 +258,17 @@ window.API = (() => {
         }
       }));
       return results.filter(Boolean);
+    },
+
+    /** A seller's public profile and their live listings, or null. */
+    async sellerProfile(id) {
+      if (!this.available || !id) return null;
+      try {
+        return await this.request('GET', `/api/users/${encodeURIComponent(id)}`);
+      } catch (err) {
+        if (err.status === 404) return null;
+        throw err;
+      }
     },
 
     /** Sidebar counts. */
@@ -237,17 +304,14 @@ window.API = (() => {
     /* --------------------------------------------------------------- writes */
 
     /**
-     * Publishes an ad.
-     * @returns {{ad: object, ownerToken: string, status: string}}
+     * Publishes an ad as the signed-in member.
+     * @returns {{ad: object, status: string}}
      */
     async createAd(payload) {
       if (!this.available) return this.offlineCreate(payload);
 
       const data = await this.request('POST', '/api/ads', payload);
-      if (data.ownerToken) {
-        this.rememberAd(data.ad.id, data.ownerToken, data.ad.title);
-      }
-      return data;
+      return { ad: data.ad, status: data.status };
     },
 
     /**
@@ -276,12 +340,12 @@ window.API = (() => {
         views: 0,
         created: now,
         photos: payload.photos || [],
-        seller: { name: payload.contactName, joined: now, verified: false, ads: 1 },
+        seller: { id: '', name: payload.contactName, joined: now, verified: false },
         contactPhone: payload.contactPhone,
         contactEmail: payload.contactEmail || '',
       };
       PB.saveAd(ad);
-      return { ad, ownerToken: null, status: 'active', offline: true };
+      return { ad, status: 'active', offline: true };
     },
 
     /** Edits an ad the caller owns. */
@@ -301,8 +365,7 @@ window.API = (() => {
         return { ad: merged, offline: true };
       }
 
-      const data = await this.request('PUT', `/api/ads/${encodeURIComponent(id)}`,
-                                      payload, this.ownerHeader(id));
+      const data = await this.request('PUT', `/api/ads/${encodeURIComponent(id)}`, payload);
       return { ad: data.ad, offline: false };
     },
 
@@ -310,12 +373,9 @@ window.API = (() => {
     async deleteAd(id) {
       if (!this.available) {
         PB.deleteAd(id);
-        this.forgetAd(id);
         return { ok: true, offline: true };
       }
-      await this.request('DELETE', `/api/ads/${encodeURIComponent(id)}`,
-                         undefined, this.ownerHeader(id));
-      this.forgetAd(id);
+      await this.request('DELETE', `/api/ads/${encodeURIComponent(id)}`);
       return { ok: true, offline: false };
     },
 
@@ -368,37 +428,33 @@ window.API = (() => {
       return data.keys || [];
     },
 
-    /* ------------------------------------------------------- my ads (local) */
+    /* ------------------------------------------------------------- my ads */
 
-    /** @returns {Array<{id: string, token: string, title: string, created: string}>} */
-    myAds() {
-      const list = readJson(MINE_KEY, []);
-      return Array.isArray(list) ? list : [];
-    },
-
-    rememberAd(id, token, title) {
-      const list = this.myAds().filter(a => a.id !== id);
-      list.unshift({ id, token, title: title || '', created: new Date().toISOString() });
-      writeJson(MINE_KEY, list);
-    },
-
-    forgetAd(id) {
-      writeJson(MINE_KEY, this.myAds().filter(a => a.id !== id));
-    },
-
-    ownsAd(id) {
-      return this.myAds().some(a => a.id === id);
-    },
-
-    tokenFor(id) {
-      const entry = this.myAds().find(a => a.id === id);
-      return entry ? entry.token : null;
-    },
-
-    /** The header that proves ownership, or nothing when we do not own it. */
-    ownerHeader(id) {
-      const token = this.tokenFor(id);
-      return token ? { 'x-owner-token': token } : undefined;
+    /**
+     * Every listing the signed-in member has posted, drafts included.
+     *
+     * Online this is the account's own list from the server. Offline there is
+     * no account, so it falls back to the ads this browser created.
+     *
+     * @returns {{ads: object[], offline: boolean, signedOut: boolean}}
+     */
+    async myAds() {
+      if (!this.available) {
+        return { ads: PB.getUserAds(), offline: true, signedOut: false };
+      }
+      if (!this.user) {
+        return { ads: [], offline: false, signedOut: true };
+      }
+      try {
+        const data = await this.request('GET', '/api/me/ads');
+        return { ads: data.ads || [], counts: data.counts, offline: false, signedOut: false };
+      } catch (err) {
+        if (err.status === 401) {
+          this.user = null;
+          return { ads: [], offline: false, signedOut: true };
+        }
+        throw err;
+      }
     },
   };
 

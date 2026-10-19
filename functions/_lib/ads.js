@@ -2,7 +2,7 @@
    PetBikroy — ad query builder (shared by the public and admin lists)
    ========================================================================== */
 
-import { AD_COLUMNS, photoUrl } from './mappers.js';
+import { AD_COLUMNS, AD_FROM, photoUrl } from './mappers.js';
 import { csv, intParam, str, bool } from './http.js';
 
 export const SORTS = {
@@ -37,6 +37,9 @@ function buildWhere(f, { publicOnly }) {
   }
 
   if (f.loc) { clauses.push('a.location_id = ?'); binds.push(f.loc); }
+
+  // Used by the public seller profile ("everything this member has listed").
+  if (f.userId) { clauses.push('a.user_id = ?'); binds.push(f.userId); }
 
   if (f.areas && f.areas.length) {
     clauses.push(`a.area IN (${f.areas.map(() => '?').join(',')})`);
@@ -119,7 +122,7 @@ export async function queryAds(env, f, { defaultPerPage = 12, includePhotos = tr
   const total = countRow?.total ?? 0;
 
   const rows = await env.DB.prepare(
-    `SELECT ${AD_COLUMNS} FROM ads a ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
+    `SELECT ${AD_COLUMNS} ${AD_FROM} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
   ).bind(...binds, perPage, offset).all();
 
   const list = rows.results ?? [];

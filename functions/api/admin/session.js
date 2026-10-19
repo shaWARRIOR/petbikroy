@@ -10,7 +10,7 @@ import {
 } from '../../_lib/http.js';
 import { rateLimit } from '../../_lib/db.js';
 import {
-  login, getSession, destroySession, sessionCookie, clearSessionCookie,
+  loginAdmin, getAdminSession, destroySession, sessionCookie, clearSessionCookie,
 } from '../../_lib/auth.js';
 
 /** Stops password spraying across many accounts from one address. */
@@ -30,10 +30,10 @@ export async function onRequestPost({ request, env }) {
     }
     if (password.length > 200) throw unauthorized('Incorrect email or password.');
 
-    const { token, admin } = await login(env, request, email, password);
+    const { token, admin } = await loginAdmin(env, request, email, password);
 
     return json({ admin }, {
-      headers: { 'set-cookie': sessionCookie(token) },
+      headers: { 'set-cookie': sessionCookie(token, 'admin') },
     });
   } catch (e) {
     return handleError(e, request, env);
@@ -42,7 +42,7 @@ export async function onRequestPost({ request, env }) {
 
 export async function onRequestGet({ request, env }) {
   try {
-    const admin = await getSession(env, request);
+    const admin = await getAdminSession(env, request);
     // 200 with null rather than 401: "not signed in" is a normal state the
     // admin panel checks on load, not an error.
     return json({ admin });
@@ -53,8 +53,8 @@ export async function onRequestGet({ request, env }) {
 
 export async function onRequestDelete({ request, env }) {
   try {
-    await destroySession(env, request);
-    return json({ ok: true }, { headers: { 'set-cookie': clearSessionCookie() } });
+    await destroySession(env, request, 'admin');
+    return json({ ok: true }, { headers: { 'set-cookie': clearSessionCookie('admin') } });
   } catch (e) {
     return handleError(e, request, env);
   }

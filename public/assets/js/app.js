@@ -74,6 +74,26 @@ const UI = (() => {
       .map(w => w[0] || '').join('').toUpperCase() || '?';
   }
 
+  /**
+   * Client mirrors of the account rules in `functions/_lib/validate.js`.
+   *
+   * They exist only so a form can give instant feedback; the API is still the
+   * authority, and a value that only fails here is still rejected there.
+   * `tests/validate.py` fails the build if these two copies drift apart.
+   */
+  const LIMITS = {
+    NAME_MIN: 2, NAME_MAX: 80,
+    PASSWORD_MIN: 8, PASSWORD_MAX: 100,
+    BIO_MAX: 300,
+  };
+
+  function safeNext(fallback = 'my-ads.html') {
+    const raw = qs().get('next') || '';
+    // Only a plain page name with an optional query string is accepted, so
+    // `?next=` can never bounce a visitor to another site.
+    return /^[a-z0-9-]+\.html(\?[^#]*)?$/i.test(raw) ? raw : fallback;
+  }
+
   /* -------------------------------------------------------------- toasts */
 
   let toastHost = null;
@@ -184,6 +204,83 @@ const UI = (() => {
     });
   }
 
+  /* ------------------------------------------------------------ account */
+
+  /**
+   * The account control in the header.
+   *
+   * `API.settled` is false until the reachability probe has finished, so the
+   * first paint always offers "Sign in" and `updateAccountUI()` corrects it a
+   * moment later — which is the common case for a new visitor anyway.
+   */
+  function accountSlot() {
+    const api = window.API;
+    const user = api && api.user;
+
+    if (user) {
+      return `<a class="header-user" href="account.html" title="${esc(user.name)}">
+        <span class="avatar">${esc(initials(user.name))}</span>
+        <span class="un">${esc(String(user.name).split(/\s+/)[0])}</span>
+      </a>`;
+    }
+
+    // A deploy with no backend has no accounts at all, so offer the local ad
+    // manager rather than a sign-in page that could not possibly work.
+    if (api && api.settled && !api.available) {
+      return `<a class="header-user" href="my-ads.html" title="My ads">
+        <span class="avatar">${initials('Guest')}</span>
+        <span class="un">My ads</span>
+      </a>`;
+    }
+
+    return `<a class="header-user" href="login.html" title="Sign in">
+      <span class="avatar">${icon('user', 16)}</span>
+      <span class="un">Sign in</span>
+    </a>`;
+  }
+
+  function headerActions() {
+    return `<a class="icon-btn" href="favorites.html" aria-label="Favourites">
+        ${icon('heart', 19)}
+        <span class="badge hide" data-fav-count>0</span>
+      </a>
+      ${accountSlot()}
+      <a class="btn btn-accent" href="post.html">${icon('plus', 17)} Post your ad</a>`;
+  }
+
+  /** Account links inside the slide-out drawer. */
+  function drawerAccount() {
+    const api = window.API;
+    if (api && api.settled && !api.available) return '';
+
+    const user = api && api.user;
+    if (!user) {
+      return `<a href="login.html">👤 Sign in</a>
+        <a href="register.html">✨ Create an account</a>`;
+    }
+    return `<a href="account.html">👤 ${esc(user.name)}</a>
+      <a href="my-ads.html">📋 My ads</a>
+      <button type="button" data-signout>🚪 Sign out</button>`;
+  }
+
+  /** Re-renders everything that depends on who is signed in. */
+  function updateAccountUI() {
+    const actions = $('#headerActions');
+    if (actions) {
+      actions.innerHTML = headerActions();
+      updateFavBadge();
+    }
+    const drawer = $('#drawerAccount');
+    if (drawer) drawer.innerHTML = drawerAccount();
+  }
+
+  async function signOut() {
+    await API.logout();
+    updateAccountUI();
+    toast('Signed out', 'ok');
+    document.dispatchEvent(new CustomEvent('pb:signedout'));
+  }
+
   /* ------------------------------------------------------------- header */
 
   function catNavItems(activeCat) {
@@ -228,16 +325,8 @@ const UI = (() => {
       <button type="submit" aria-label="Search">${icon('search', 20)}</button>
     </form>
 
-    <div class="header-actions">
-      <a class="icon-btn" href="favorites.html" aria-label="Favourites">
-        ${icon('heart', 19)}
-        <span class="badge hide" data-fav-count>0</span>
-      </a>
-      <a class="header-user" href="my-ads.html" title="My ads">
-        <span class="avatar">${initials('Guest')}</span>
-        <span class="un">My ads</span>
-      </a>
-      <a class="btn btn-accent" href="post.html">${icon('plus', 17)} Post your ad</a>
+    <div class="header-actions" id="headerActions">
+      ${headerActions()}
     </div>
   </div>
 
@@ -258,10 +347,10 @@ const UI = (() => {
   </div>
   <div class="drawer-body">
     <a href="post.html" class="btn btn-accent btn-block" style="margin:6px 0 12px">${icon('plus', 17)} Post your ad</a>
+    <div id="drawerAccount">${drawerAccount()}</div>
     <a href="index.html">🏠 Home</a>
     <a href="listings.html">🔎 Browse all ads</a>
     <a href="favorites.html">❤️ Favourites <span class="push"></span></a>
-    <a href="my-ads.html">📋 My ads</a>
 
     <h4>Categories</h4>
     ${PB.CATEGORIES.map(c => `<a href="listings.html?cat=${c.id}">${c.emoji} ${esc(c.name)}</a>`).join('')}
@@ -361,8 +450,21 @@ const UI = (() => {
     if ($('#hdrCat') && p.get('cat')) $('#hdrCat').value = p.get('cat');
     if (sel && p.get('loc')) sel.value = p.get('loc');
 
+    // Sign-out lives in the drawer, which is re-rendered whenever the account
+    // changes, so the handler is delegated from the document.
+    document.addEventListener('click', e => {
+      if (e.target.closest('[data-signout]')) {
+        e.preventDefault();
+        signOut();
+      }
+    });
+
     updateFavBadge();
     bindFavorites(document);
+
+    // The reachability probe normally resolves just after the first paint, so
+    // the account controls are settled here rather than blocking the render.
+    API.ready.then(updateAccountUI);
 
     document.dispatchEvent(new CustomEvent('pb:chrome'));
   }
@@ -381,8 +483,9 @@ const UI = (() => {
   }
 
   return {
-    ICONS, icon, $, $$, esc, qs, setQuery, debounce, initials,
+    ICONS, icon, $, $$, esc, qs, setQuery, debounce, initials, safeNext, LIMITS,
     toast, adCard, renderAds, emptyState, priceHtml,
+    accountSlot, headerActions, drawerAccount, updateAccountUI, signOut,
     bindFavorites, updateFavBadge, header, footer, mountChrome, crumbs,
   };
 })();

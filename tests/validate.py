@@ -168,6 +168,25 @@ def check_limits(root):
         else:
             print(f'  ok  {field_id} maxlength = {limit}')
 
+    # The account forms mirror the server's rules the same way the wizard
+    # does, through UI.LIMITS in public/assets/js/app.js.
+    A = 'public/assets/js/app.js'
+    appjs = read(A)
+    for label, key in [('name minimum', 'NAME_MIN'),
+                       ('name maximum', 'NAME_MAX'),
+                       ('password minimum', 'PASSWORD_MIN'),
+                       ('password maximum', 'PASSWORD_MAX'),
+                       ('bio maximum', 'BIO_MAX')]:
+        a, b = _constant(server, key), _constant(appjs, key)
+        if a is None or b is None:
+            print(f'  ! {label}: constant not found ({key} in {S} or {A})')
+            bad += 1
+        elif a != b:
+            print(f'  ! {label}: {S} allows {a} but {A} allows {b}')
+            bad += 1
+        else:
+            print(f'  ok  {label} = {a}')
+
     return bad
 
 

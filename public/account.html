@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My account — PetBikroy</title>
+<meta name="description" content="Update your PetBikroy profile and password.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<noscript>
+  <div style="max-width:1200px;margin:16px auto;padding:14px 18px;border:1px solid #f6dfb8;background:#fff8ec;border-radius:10px;font:14px/1.5 system-ui,sans-serif;color:#7c5a14">
+    <strong>JavaScript is turned off.</strong> Your account settings need JavaScript.
+  </div>
+</noscript>
+
+<main class="page" id="main">
+  <div class="wrap">
+    <div id="crumbs"></div>
+    <div id="acctBody" class="hide" style="max-width:720px;margin:0 auto">
+
+      <div class="card acct-section">
+        <div class="acct-head">
+          <div class="acct-avatar" id="acctAvatar">?</div>
+          <div>
+            <h1 style="margin:0;font-size:24px" id="acctName">—</h1>
+            <div class="small muted" id="acctMeta"></div>
+          </div>
+          <span class="push"></span>
+          <a class="btn btn-accent" href="post.html">+ Post an ad</a>
+        </div>
+      </div>
+
+      <div class="card acct-section">
+        <h2>Public profile</h2>
+        <p class="hint">Buyers see your name and area on your ads and on your
+        seller page. Your phone number is only shown on an individual ad.</p>
+
+        <div class="form-alert hide" id="profileAlert" role="alert"></div>
+
+        <form id="profileForm" novalidate>
+          <div class="field">
+            <label class="req" for="pName">Your name or business</label>
+            <input class="input" id="pName" type="text" maxlength="80" required>
+            <div class="err-msg" data-err="name"></div>
+          </div>
+
+          <div class="field">
+            <label for="pEmail">Email <span class="tiny muted">(optional)</span></label>
+            <input class="input" id="pEmail" type="email" maxlength="160">
+            <div class="err-msg" data-err="email"></div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="pLocation">Division</label>
+              <select class="select" id="pLocation">
+                <option value="">Choose a division</option>
+              </select>
+              <div class="err-msg" data-err="locationId"></div>
+            </div>
+            <div class="field">
+              <label for="pArea">Area</label>
+              <select class="select" id="pArea">
+                <option value="">Choose a division first</option>
+              </select>
+              <div class="err-msg" data-err="area"></div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="pBio">About you <span class="tiny muted">(optional)</span></label>
+            <textarea class="textarea" id="pBio" maxlength="300"
+                      placeholder="Tell buyers what you breed, sell or rehome."></textarea>
+            <div class="err-msg" data-err="bio"></div>
+          </div>
+
+          <button class="btn btn-primary" type="submit" id="profileBtn">Save profile</button>
+        </form>
+      </div>
+
+      <div class="card acct-section">
+        <h2>Password</h2>
+        <p class="hint">Changing your password signs you out on every other
+        device, in case someone else knows it.</p>
+
+        <div class="form-alert hide" id="passwordAlert" role="alert"></div>
+
+        <form id="passwordForm" novalidate>
+          <div class="field">
+            <label class="req" for="curPw">Current password</label>
+            <input class="input" id="curPw" type="password" autocomplete="current-password" required>
+            <div class="err-msg" data-err="currentPassword"></div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="req" for="newPw">New password</label>
+              <input class="input" id="newPw" type="password" autocomplete="new-password" required>
+              <div class="tiny muted">At least 8 characters.</div>
+              <div class="err-msg" data-err="newPassword"></div>
+            </div>
+            <div class="field">
+              <label class="req" for="confirmPw">Repeat new password</label>
+              <input class="input" id="confirmPw" type="password" autocomplete="new-password" required>
+              <div class="err-msg" data-err="confirmPassword"></div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" type="submit" id="passwordBtn">Change password</button>
+        </form>
+      </div>
+
+      <div class="card acct-section">
+        <h2>Session</h2>
+        <p class="hint">Signed in as <strong id="acctPhone">—</strong>.</p>
+        <button class="btn btn-outline" type="button" id="signOutBtn">Sign out</button>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/account.js"></script>
+</body>
+</html>

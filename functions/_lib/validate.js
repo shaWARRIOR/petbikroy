@@ -13,6 +13,8 @@ export const LIMITS = {
   NAME_MIN: 2, NAME_MAX: 80,
   AGE_MAX: 40,
   MAX_PHOTOS: 6,
+  PASSWORD_MIN: 8, PASSWORD_MAX: 100,
+  BIO_MAX: 300,
   KINDS: ['sale', 'adoption', 'service'],
   GENDERS: ['', 'Male', 'Female', 'Pair'],
   CONDITIONS: ['New', 'Used', 'Refurbished'],
@@ -147,10 +149,116 @@ export function validateAd(body, taxonomy) {
 }
 
 /** Throws a 400 carrying per-field messages when validation failed. */
-export function assertValid(result) {
+export function assertValid(result, key = 'ad') {
   const keys = Object.keys(result.errors);
   if (keys.length) {
     throw badRequest('Please fix the highlighted fields.', result.errors);
   }
-  return result.ad;
+  return result[key];
+}
+
+/* --------------------------------------------------------- member accounts */
+
+/**
+ * Validates a sign-up payload.
+ *
+ * The phone number is the login identifier *and* what a buyer rings, so it is
+ * required and has to be a real Bangladeshi mobile number. Email is optional.
+ *
+ * @param {object} body
+ * @param {object} [taxonomy]  when supplied, the division/area are checked too
+ * @returns {{account: object, errors: object}}
+ */
+export function validateRegistration(body, taxonomy = null) {
+  const errors = {};
+  const fail = (field, message) => { errors[field] = message; };
+
+  const name = str(body.name, LIMITS.NAME_MAX + 1);
+  if (name.length < LIMITS.NAME_MIN) fail('name', 'Enter your name.');
+  else if (name.length > LIMITS.NAME_MAX) fail('name', `Name must be under ${LIMITS.NAME_MAX} characters.`);
+
+  const phone = digits(body.phone);
+  if (!PHONE_RE.test(phone)) {
+    fail('phone', 'Enter a valid Bangladeshi mobile number, e.g. 01712345678.');
+  }
+
+  const email = str(body.email, 160).toLowerCase();
+  if (email && !EMAIL_RE.test(email)) fail('email', 'That email looks wrong.');
+
+  const password = String(body.password ?? '');
+  if (password.length < LIMITS.PASSWORD_MIN) {
+    fail('password', `Use at least ${LIMITS.PASSWORD_MIN} characters.`);
+  } else if (password.length > LIMITS.PASSWORD_MAX) {
+    fail('password', `Password must be under ${LIMITS.PASSWORD_MAX} characters.`);
+  }
+
+  // Only checked when the client sends it, so the API stays usable without it.
+  if (body.confirm !== undefined && body.confirm !== password) {
+    fail('confirm', 'The two passwords do not match.');
+  }
+
+  const locationId = str(body.locationId, 40);
+  const area = str(body.area, 60);
+  checkLocation({ locationId, area, taxonomy, fail });
+
+  return { account: { name, phone, email, password, locationId, area }, errors };
+}
+
+/** Validates a profile edit. */
+export function validateProfile(body, taxonomy = null) {
+  const errors = {};
+  const fail = (field, message) => { errors[field] = message; };
+
+  const name = str(body.name, LIMITS.NAME_MAX + 1);
+  if (name.length < LIMITS.NAME_MIN) fail('name', 'Enter your name.');
+  else if (name.length > LIMITS.NAME_MAX) fail('name', `Name must be under ${LIMITS.NAME_MAX} characters.`);
+
+  const email = str(body.email, 160).toLowerCase();
+  if (email && !EMAIL_RE.test(email)) fail('email', 'That email looks wrong.');
+
+  const bio = str(body.bio, LIMITS.BIO_MAX + 1);
+  if (bio.length > LIMITS.BIO_MAX) {
+    fail('bio', `Keep your introduction under ${LIMITS.BIO_MAX} characters.`);
+  }
+
+  const locationId = str(body.locationId, 40);
+  const area = str(body.area, 60);
+  checkLocation({ locationId, area, taxonomy, fail });
+
+  return { profile: { name, email, bio, locationId, area }, errors };
+}
+
+/** Validates a password change. */
+export function validatePasswordChange(body) {
+  const errors = {};
+  const fail = (field, message) => { errors[field] = message; };
+
+  const current = String(body.currentPassword ?? '');
+  if (!current) fail('currentPassword', 'Enter your current password.');
+
+  const next = String(body.newPassword ?? '');
+  if (next.length < LIMITS.PASSWORD_MIN) {
+    fail('newPassword', `Use at least ${LIMITS.PASSWORD_MIN} characters.`);
+  } else if (next.length > LIMITS.PASSWORD_MAX) {
+    fail('newPassword', `Password must be under ${LIMITS.PASSWORD_MAX} characters.`);
+  } else if (next === current) {
+    fail('newPassword', 'Choose a password different from your current one.');
+  }
+
+  return { passwords: { current, next }, errors };
+}
+
+/** Shared division/area check — both optional, but must be consistent. */
+function checkLocation({ locationId, area, taxonomy, fail }) {
+  if (!taxonomy || !locationId) return;
+  if (!taxonomy.locations.has(locationId)) {
+    fail('locationId', 'Unknown division.');
+    return;
+  }
+  if (area) {
+    const allowed = taxonomy.areasByLoc.get(locationId);
+    if (allowed && !allowed.has(area)) {
+      fail('area', 'That area is not in the chosen division.');
+    }
+  }
 }

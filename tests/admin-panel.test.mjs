@@ -293,6 +293,113 @@ async function main() {
     await waitFor(() => !doc.querySelector('.modal-back'), 'the dialog to close');
     truthy(true, 'the dialog closes on Cancel');
 
+    /* ------------------------------------------------------------ members */
+    head('view: members');
+
+    window.location.hash = '#/members';
+    await waitForView(doc, 'members');
+    await waitFor(() => doc.querySelector('[data-act="mtab"]'), 'the member controls to render');
+
+    truthy(text($('#pageTitle')) === 'Members', 'the page title updates');
+    truthy(doc.querySelector('#nav a[data-view="members"]').classList.contains('active'),
+           'the sidebar marks the members view active');
+
+    const memberRows = () => doc.querySelectorAll('#view tbody tr').length;
+    truthy(memberRows() > 0, 'the member table has rows');
+
+    const memberTabs = [...doc.querySelectorAll('[data-act="mtab"]')].map(b => b.dataset.filter);
+    eq(memberTabs.length, 4, 'four member filters are offered');
+    truthy(memberTabs.includes('verified') && memberTabs.includes('disabled'),
+           'the filters cover verified and suspended accounts');
+
+    /** The server's own count, so the table is compared against the truth. */
+    const memberCountFor = async filter => {
+      const res = await fetch(`${BASE}/api/admin/users?filter=${filter}&perPage=25`,
+                              { headers: { cookie } });
+      return (await res.json()).total;
+    };
+
+    const allMembers = await memberCountFor('all');
+    eq(memberRows(), Math.min(25, allMembers), 'the Everyone tab lists every member');
+    truthy(text($('#view')).includes('Live / total'),
+           'the table shows live listings alongside the total');
+
+    // The verified filter must really narrow the table.
+    doc.querySelector('[data-act="mtab"][data-filter="verified"]').click();
+    const verifiedTotal = await memberCountFor('verified');
+    await waitFor(() => memberRows() === Math.min(25, verifiedTotal), 'the Verified tab to filter');
+    truthy(verifiedTotal > 0, 'some members are verified');
+    truthy(verifiedTotal < allMembers, 'some are not, so the filter is actually testing something');
+
+    doc.querySelector('[data-act="mtab"][data-filter="all"]').click();
+    await waitFor(() => memberRows() === Math.min(25, allMembers), 'the Everyone tab to restore');
+
+    // Search by phone number: the login identifier, so it is what an operator
+    // usually has to hand.
+    const firstMember = (await (await fetch(`${BASE}/api/admin/users?perPage=1`,
+                                            { headers: { cookie } })).json()).users[0];
+    $('#mq').value = firstMember.phone;
+    doc.querySelector('[data-act="msearch"]').click();
+    await waitFor(() => memberRows() === 1, 'the search to narrow to a single member');
+    truthy(text($('#view')).includes(firstMember.phone), 'the searched-for phone number is shown');
+
+    const mClear = doc.querySelector('[data-act="mclear"]');
+    truthy(mClear, 'a Clear button appears once the member list is filtered');
+    mClear.click();
+    await waitFor(() => memberRows() === Math.min(25, allMembers), 'the search to clear');
+    truthy(true, 'the Clear button resets the member search');
+
+    /* --------------------------------------------------- member inspector */
+    head('member inspector dialog');
+
+    const openMember = doc.querySelector('[data-act="openmember"]');
+    const memberId = openMember.dataset.id;
+    openMember.click();
+    await waitFor(() => doc.querySelector('.modal-back'), 'the member panel to open');
+
+    const memberModal = text(doc.querySelector('.modal'));
+    truthy(memberModal.includes('Their listings'), 'the panel lists their ads');
+    truthy(memberModal.includes('Joined'), 'the panel shows when they joined');
+    truthy(memberModal.includes('Last sign-in'), 'the panel shows their last sign-in');
+    truthy(memberModal.includes(memberId), 'the panel shows the member id');
+
+    const memberActions = () =>
+      [...doc.querySelectorAll('.modal-back [data-x="action"]')].map(b => b.dataset.action);
+
+    truthy(memberActions().includes('verify') || memberActions().includes('unverify'),
+           'a verification toggle is offered');
+    truthy(memberActions().includes('resetPassword'), 'a password reset is offered');
+    truthy(memberActions().includes('deactivate') || memberActions().includes('activate'),
+           'a suspension toggle is offered');
+    truthy(memberActions().includes('delete'), 'a delete action is offered');
+
+    // Exercise a real, reversible action end-to-end through the UI.
+    const verifyBtn = () => [...doc.querySelectorAll('.modal-back [data-x="action"]')]
+      .find(b => b.dataset.action === 'verify' || b.dataset.action === 'unverify');
+
+    const wasVerified = verifyBtn().dataset.action === 'unverify';
+    clearToasts(doc);
+    verifyBtn().click();
+    await waitFor(() => !doc.querySelector('.modal-back'), 'the member panel to close');
+    await waitFor(() => doc.querySelectorAll('.toast').length > 0, 'the member action toast');
+
+    const readVerified = async () =>
+      (await (await fetch(`${BASE}/api/admin/users/${memberId}`,
+                          { headers: { cookie } })).json()).user.verified;
+
+    await waitFor(async () => (await readVerified()) === !wasVerified,
+                  'the badge to change on the server');
+    eq(await readVerified(), !wasVerified,
+       'verification really changed on the server after the dialog action');
+
+    // Put it back the way we found it.
+    await fetch(`${BASE}/api/admin/users/${memberId}`, {
+      method: 'PATCH',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: wasVerified ? 'verify' : 'unverify' }),
+    });
+    eq(await readVerified(), wasVerified, 'the member was restored to the state we found them in');
+
     /* --------------------------------------------------------- ad inspector */
     head('ad inspector dialog');
 

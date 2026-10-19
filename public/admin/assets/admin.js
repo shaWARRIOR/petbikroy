@@ -116,6 +116,7 @@
     view: 'overview',
     counts: { pending: 0, openReports: 0 },
     listings: { page: 1, status: 'all', q: '', cat: '', loc: '' },
+    members: { page: 1, filter: 'all', q: '' },
     reports: { status: 'open' },
   };
 
@@ -287,6 +288,7 @@
     overview:   { title: 'Overview',       render: viewOverview },
     listings:   { title: 'Listings',       render: viewListings },
     moderation: { title: 'Needs review',   render: viewModeration },
+    members:    { title: 'Members',        render: viewMembers },
     reports:    { title: 'Reports',        render: viewReports },
     settings:   { title: 'Settings',       render: viewSettings, adminOnly: true },
     team:       { title: 'Team',           render: viewTeam,     adminOnly: true },
@@ -733,6 +735,8 @@
       hint: 'How many ads appear on each results page (4–48).' },
     { key: 'post_limit', label: 'Ads per visitor per hour', type: 'number',
       hint: 'Rate limit on posting. 10 is a sensible default.' },
+    { key: 'signup_limit', label: 'Sign-ups per address per hour', type: 'number',
+      hint: 'Rate limit on new accounts. 10 is a sensible default.' },
     { key: 'posting_enabled', label: 'Allow new ads', type: 'bool',
       hint: 'Turn off to pause posting site-wide without losing the page.' },
     { key: 'auto_approve', label: 'Auto-approve new ads', type: 'bool',
@@ -854,6 +858,265 @@
         </div>
       </div>
     `;
+  }
+
+  /* ============================================================ view: members */
+
+  const MEMBER_TABS = [
+    ['all', 'Everyone'],
+    ['active', 'Active'],
+    ['verified', 'Verified'],
+    ['disabled', 'Suspended'],
+  ];
+
+  async function viewMembers(host) {
+    const f = state.members;
+    const qs = new URLSearchParams({ filter: f.filter, page: f.page, perPage: 25 });
+    if (f.q) qs.set('q', f.q);
+
+    const data = await api.get(`/api/admin/users?${qs}`);
+
+    host.innerHTML = `
+      <div class="card mb">
+        <div class="card-body">
+          <div class="bar">
+            <div class="grow">
+              <input type="search" id="mq" placeholder="Search name, phone or email…"
+                     value="${esc(f.q)}">
+            </div>
+            <button class="btn btn-outline" data-act="msearch">Search</button>
+            ${f.q ? '<button class="btn btn-ghost" data-act="mclear">Clear</button>' : ''}
+          </div>
+
+          <div class="bar" style="margin-top:12px">
+            ${MEMBER_TABS.map(([v, label]) => `
+              <button class="btn btn-sm ${f.filter === v ? '' : 'btn-outline'}"
+                      data-act="mtab" data-filter="${v}">${esc(label)}</button>
+            `).join('')}
+            <span class="small muted" style="margin-left:auto">
+              ${plural(data.total, 'member')}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body flush table-wrap">
+          ${data.users.length ? `
+          <table>
+            <thead>
+              <tr>
+                <th>Member</th><th>Area</th><th class="right">Live / total</th>
+                <th>Status</th><th class="right">Joined</th>
+                <th class="right">Last sign-in</th><th></th>
+              </tr>
+            </thead>
+            <tbody>${data.users.map(memberRow).join('')}</tbody>
+          </table>` : `
+            <div class="empty">
+              <div class="big">🧑</div>
+              <h3>No members match</h3>
+              <p>${f.q ? 'Try a different search.' : 'Nobody is listed yet.'}</p>
+            </div>`}
+        </div>
+        ${data.pages > 1 ? `
+        <div class="pager">
+          <button class="btn btn-outline btn-sm" data-act="mpage" data-page="${data.page - 1}"
+                  ${data.page <= 1 ? 'disabled' : ''}>← Previous</button>
+          <span class="small muted">Page ${data.page} of ${data.pages}</span>
+          <button class="btn btn-outline btn-sm" data-act="mpage" data-page="${data.page + 1}"
+                  ${data.page >= data.pages ? 'disabled' : ''}>Next →</button>
+        </div>` : ''}
+      </div>
+    `;
+  }
+
+  function memberRow(m) {
+    const initial = (m.name || '?').trim().charAt(0).toUpperCase();
+
+    return `
+      <tr>
+        <td>
+          <div class="ad-cell">
+            <span class="thumb" style="border-radius:50%">${esc(initial)}</span>
+            <div style="min-width:0">
+              <span class="t">${esc(m.name)}</span>
+              <span class="m mono">${esc(m.phone)}${m.email ? ' · ' + esc(m.email) : ''}</span>
+            </div>
+          </div>
+        </td>
+        <td class="nowrap small">${esc(m.area || '—')}</td>
+        <td class="right mono-num">${group(m.activeAds)}<span class="muted"> / ${group(m.ads)}</span></td>
+        <td class="nowrap">
+          ${m.verified ? '<span class="badge active">verified</span> ' : ''}
+          ${m.active ? '' : '<span class="badge rejected">suspended</span>'}
+          ${m.verified || !m.active ? '' : '<span class="badge">member</span>'}
+        </td>
+        <td class="right small muted nowrap">${esc(fmtDate(m.joined))}</td>
+        <td class="right small muted nowrap">${esc(m.lastLogin ? ago(m.lastLogin) : 'never')}</td>
+        <td class="actions">
+          <button class="btn btn-outline btn-sm" data-act="openmember"
+                  data-id="${esc(m.id)}">Open</button>
+        </td>
+      </tr>`;
+  }
+
+  /* ================================================== action: member panel */
+
+  async function openMemberPanel(id) {
+    const { user: m, ads } = await api.get(`/api/admin/users/${encodeURIComponent(id)}`);
+
+    // Read-only: "Open ad" buttons here would stack a second dialog on top of
+    // this one, which is exactly what the moderation flow avoids.
+    const adList = ads.length ? `
+      <div class="table-wrap"><table>
+        <thead><tr><th>Ad</th><th>Price</th><th>Status</th><th class="right">Views</th></tr></thead>
+        <tbody>${ads.slice(0, 12).map(a => `
+          <tr>
+            <td><span class="t">${esc(a.title)}</span></td>
+            <td class="nowrap">${a.kind === 'adoption'
+              ? '<span class="badge">free</span>' : money(a.price)}</td>
+            <td>${statusBadge(a.status)}</td>
+            <td class="right mono-num">${group(a.views)}</td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+      ${ads.length > 12 ? `<p class="small muted">…and ${group(ads.length - 12)} more.</p>` : ''}
+    ` : '<p class="small muted">Nothing posted yet.</p>';
+
+    const body = `
+      <div class="bar mb">
+        <span class="avatar" style="width:50px;height:50px;font-size:20px">
+          ${esc((m.name || '?').trim().charAt(0).toUpperCase())}</span>
+        <div style="min-width:0">
+          <h3 style="margin:0">${esc(m.name)}</h3>
+          <p class="small muted mono" style="margin:2px 0 0">${esc(m.phone)}</p>
+        </div>
+      </div>
+
+      <div class="bar mb">
+        ${m.verified
+          ? '<span class="badge active">verified</span>'
+          : '<span class="badge">unverified</span>'}
+        ${m.active
+          ? '<span class="badge active">active</span>'
+          : '<span class="badge rejected">suspended</span>'}
+        <span class="badge">${group(m.activeAds)} live of ${plural(m.ads, 'listing')}</span>
+      </div>
+
+      <dl class="dl mb">
+        <dt>Email</dt><dd>${esc(m.email || '—')}</dd>
+        <dt>Area</dt><dd>${esc(m.area || '—')}</dd>
+        <dt>Joined</dt><dd>${esc(fmtDate(m.joined, true))}</dd>
+        <dt>Last sign-in</dt><dd>${esc(m.lastLogin ? fmtDate(m.lastLogin, true) : 'never')}</dd>
+      </dl>
+
+      ${m.bio ? `<p class="small" style="white-space:pre-wrap">${esc(m.bio)}</p>` : ''}
+
+      <h4 class="mt">Their listings</h4>
+      ${adList}
+
+      <details class="mt">
+        <summary class="small muted">Technical details</summary>
+        <dl class="dl mt">
+          <dt>Member ID</dt><dd class="mono">${esc(m.id)}</dd>
+          <dt>Division</dt><dd class="mono">${esc(m.loc || '—')}</dd>
+        </dl>
+      </details>
+    `;
+
+    const actions = [{
+      act: m.verified ? 'unverify' : 'verify',
+      label: m.verified ? 'Remove badge' : 'Verify',
+      cls: 'btn-outline',
+    }];
+
+    // Taking an account off the site is an administrator's call, so a
+    // moderator is not offered the buttons at all.
+    if (isAdmin()) {
+      actions.push({
+        act: m.active ? 'deactivate' : 'activate',
+        label: m.active ? 'Suspend' : 'Reactivate',
+        cls: 'btn-outline',
+      });
+      actions.push({ act: 'resetPassword', label: 'Reset password', cls: 'btn-outline' });
+      actions.push({ act: 'delete', label: 'Delete', cls: 'btn-danger' });
+    }
+
+    const result = await modal({
+      title: 'Member',
+      confirmText: 'Close',
+      cancelText: null,
+      actions,
+      bodyHtml: body,
+      onConfirm: () => null,
+    });
+
+    if (result && result.action) {
+      await memberAction(id, result.action, m);
+      refreshBadges();
+      await route();
+    }
+  }
+
+  /**
+   * Runs a member action. Any dialog it needs is opened *after* the caller has
+   * closed its own, so dialogs never stack.
+   */
+  async function memberAction(id, action, m) {
+    const path = `/api/admin/users/${encodeURIComponent(id)}`;
+
+    if (action === 'delete') {
+      const yes = await confirmDialog(
+        'Delete this member?',
+        `${m.name} and their ${m.ads} listing(s) will be removed permanently, `
+        + 'along with any photos. This cannot be undone.',
+        'Delete member',
+      );
+      if (!yes) return false;
+      await api.delete(path);
+      toast('Member deleted');
+      return true;
+    }
+
+    if (action === 'deactivate') {
+      const yes = await confirmDialog(
+        'Suspend this member?',
+        `${m.name} will be signed out at once and cannot sign back in. `
+        + 'Their listings stay on the site until you remove them.',
+        'Suspend member',
+      );
+      if (!yes) return false;
+    }
+
+    const res = await api.patch(path, { action });
+
+    if (action === 'resetPassword') {
+      // There is no email delivery, so the password is shown once and handed
+      // over out of band. Nothing stores the plain text.
+      await modal({
+        title: 'New password issued',
+        confirmText: 'Done',
+        cancelText: null,
+        onConfirm: () => null,
+        bodyHtml: `
+          <p class="small muted" style="margin-top:0">
+            Read this to ${esc(m.name)}. It is shown once and is not stored,
+            so if it is lost you must issue another.
+          </p>
+          <input type="text" readonly value="${esc(res.password)}"
+                 style="font-family:ui-monospace,monospace;font-size:16px">`,
+      });
+      toast('Password reset — pass it on to the member');
+      return true;
+    }
+
+    toast({
+      verify: 'Member verified',
+      unverify: 'Verification removed',
+      activate: 'Member reactivated',
+      deactivate: 'Member suspended',
+    }[action] || 'Member updated');
+    return true;
   }
 
   /* ================================================== action: ad detail panel */
@@ -1110,6 +1373,35 @@
           if (await moderate(id, 'reject')) { refreshBadges(); route(); }
           break;
 
+        /* ---- members ---- */
+        case 'mtab':
+          state.members.filter = el.dataset.filter;
+          state.members.page = 1;
+          route();
+          break;
+
+        case 'mpage': {
+          const page = Number(el.dataset.page);
+          if (page > 0) { state.members.page = page; route(); }
+          break;
+        }
+
+        case 'msearch':
+          state.members.q = $('#mq').value.trim();
+          state.members.page = 1;
+          route();
+          break;
+
+        case 'mclear':
+          state.members.q = '';
+          state.members.page = 1;
+          route();
+          break;
+
+        case 'openmember':
+          await openMemberPanel(id);
+          break;
+
         /* ---- reports ---- */
         case 'rtab':
           state.reports.status = el.dataset.status;
@@ -1191,13 +1483,20 @@
 
   window.addEventListener('hashchange', route);
 
-  // Enter in the listing search box should search, not submit a form.
+  // Enter in a search box should search, not submit a form.
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && e.target.id === 'lq') {
+    if (e.key !== 'Enter') return;
+
+    if (e.target.id === 'lq') {
       e.preventDefault();
       state.listings.q = e.target.value.trim();
       state.listings.cat = $('#lcat').value;
       state.listings.page = 1;
+      route();
+    } else if (e.target.id === 'mq') {
+      e.preventDefault();
+      state.members.q = e.target.value.trim();
+      state.members.page = 1;
       route();
     }
   });

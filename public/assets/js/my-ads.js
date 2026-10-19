@@ -1,13 +1,13 @@
 /* ==========================================================================
    PetBikroy — "My ads" management
 
-   There are no accounts, so "my ads" means "ads this browser published":
-   API.myAds() holds the id plus the one-time owner token that POST /api/ads
-   returned. The token is what authorises editing and deleting, and it is the
-   only copy — the server stores just its hash.
+   Listings belong to an account, so this page is simply "everything the
+   signed-in member has posted": GET /api/me/ads returns their own list with
+   the contact details and the moderator's note, which is exactly what the
+   inline editor needs to send back.
 
-   Ads are re-fetched from the API on every load so the status shown here
-   (live, in review, rejected, sold) is the real one, never a stale copy.
+   With no backend there is no account and no server list, so the page falls
+   back to the ads this browser saved locally.
    ========================================================================== */
 
 (() => {
@@ -22,9 +22,11 @@
   ]);
 
   let tab = 'all';
-  let editing = null;     // id of the ad open in the inline editor
-  let entries = [];       // [{ id, ad }] — ad is null when it has gone
+  let editing = null;      // id of the ad open in the inline editor
+  let ads = [];            // every listing the member owns
   let loading = true;
+  let signedOut = false;
+  let offline = false;
 
   const STATUS_LABEL = {
     active: 'Live', sold: 'Sold', pending: 'In review', rejected: 'Rejected',
@@ -57,8 +59,9 @@
       vaccinated: !!ad.vaccinated,
       condition: ad.condition || 'New',
       contactName: (ad.seller && ad.seller.name) || '',
-      contactPhone: ad.phone || '',
-      contactEmail: ad.email || '',
+      // Server responses use `phone`; the offline catalogue stores `contactPhone`.
+      contactPhone: ad.phone || ad.contactPhone || '',
+      contactEmail: ad.email || ad.contactEmail || '',
       ...(changes || {}),
     };
   }
@@ -69,31 +72,17 @@
     loading = true;
     await API.ready;
 
-    const ids = API.myAds().map(e => e.id);
-
-    // With no backend there is no server-side list to ask for, so fall back
-    // to whatever this browser saved locally.
-    if (!API.available) {
-      for (const ad of PB.getUserAds()) if (!ids.includes(ad.id)) ids.push(ad.id);
-    }
-
-    let ads = [];
-    try {
-      ads = await API.getAdsByIds(ids);
-    } catch {
-      ads = [];
-    }
-
-    const byId = new Map(ads.map(a => [a.id, a]));
-    entries = ids.map(id => ({ id, ad: byId.get(id) || null }));
+    const result = await API.myAds();
+    ads = result.ads || [];
+    signedOut = result.signedOut === true;
+    offline = result.offline === true;
     loading = false;
   }
 
   /* --------------------------------------------------------------- render */
 
-  const visible = () => entries.filter(({ ad }) => {
+  const visible = () => ads.filter(ad => {
     if (tab === 'all') return true;
-    if (!ad) return false;                       // gone ads only show under "All"
     if (tab === 'active') return ad.status === 'active';
     if (tab === 'sold') return ad.status === 'sold';
     if (tab === 'review') return NEEDS_ATTENTION.has(ad.status);
@@ -101,23 +90,31 @@
   });
 
   function tabCounts() {
-    const live = entries.filter(e => e.ad && e.ad.status === 'active').length;
-    const sold = entries.filter(e => e.ad && e.ad.status === 'sold').length;
-    const review = entries.filter(e => e.ad && NEEDS_ATTENTION.has(e.ad.status)).length;
-    return { all: entries.length, active: live, sold, review };
+    return {
+      all: ads.length,
+      active: ads.filter(a => a.status === 'active').length,
+      sold: ads.filter(a => a.status === 'sold').length,
+      review: ads.filter(a => NEEDS_ATTENTION.has(a.status)).length,
+    };
   }
 
   const statusPill = status =>
     `<span class="status-pill status-${esc(status)}">${esc(STATUS_LABEL[status] || status)}</span>`;
 
   function render() {
-    $('#adsCount').textContent = entries.length === 1
-      ? '1 posted by you' : `${entries.length} posted by you`;
+    const tabs = $('#tabs');
+    tabs.classList.toggle('hide', signedOut);
+
+    $('#adsCount').textContent = signedOut
+      ? ''
+      : (ads.length === 1 ? '1 posted by you' : `${ads.length} posted by you`);
 
     // Keep the tab labels honest.
     const n = tabCounts();
     $$('#tabs button').forEach(b => {
-      const base = { all: 'All mine', active: 'Live', sold: 'Sold', review: 'Needs attention' }[b.dataset.tab];
+      const base = {
+        all: 'All mine', active: 'Live', sold: 'Sold', review: 'Needs attention',
+      }[b.dataset.tab];
       if (!base) return;
       const count = n[b.dataset.tab] || 0;
       b.textContent = count ? `${base} (${count})` : base;
@@ -125,6 +122,22 @@
     });
 
     const host = $('#tableHost');
+
+    if (signedOut) {
+      host.innerHTML = `<div class="card" style="padding:26px;text-align:center;max-width:520px;margin:0 auto">
+        <div style="font-size:40px">🔐</div>
+        <h3 style="margin:8px 0">Sign in to manage your ads</h3>
+        <p class="muted small" style="margin-bottom:16px">
+          Your listings are tied to your PetBikroy account, so you need to sign
+          in before you can edit, mark them sold or take them down.
+        </p>
+        <div class="row gap-8" style="justify-content:center">
+          <a class="btn btn-primary" href="login.html?next=my-ads.html">Sign in</a>
+          <a class="btn btn-outline" href="register.html?next=my-ads.html">Create an account</a>
+        </div>
+      </div>`;
+      return;
+    }
 
     if (loading) {
       host.innerHTML = `<div class="card table-wrap"><table class="data"><tbody>
@@ -170,22 +183,12 @@
     </div>`;
   }
 
-  function rowHtml({ id, ad }) {
-    /* The ad has gone from the server — most likely deleted by a moderator.
-       Offer to tidy up rather than showing a broken row forever. */
-    if (!ad) {
-      return `<tr>
-        <td colspan="6" class="small muted">
-          This ad is no longer on PetBikroy — it was removed or deleted.
-        </td>
-        <td colspan="2" style="text-align:right">
-          <button class="btn btn-ghost btn-sm" data-forget="${esc(id)}">Remove from this list</button>
-        </td>
-      </tr>`;
-    }
-
+  function rowHtml(ad) {
+    const id = ad.id;
     const p = PB.formatPrice(ad.price, ad.negotiable);
     const open = editing === id;
+    // Local ads cannot be sent to a server that is not there.
+    const local = offline;
 
     const notice = ad.status === 'rejected' && ad.rejectionReason
       ? `<tr class="notice-row"><td colspan="8" style="background:#fdeaea">
@@ -205,7 +208,7 @@
           <div style="max-width:640px">
             <div class="field">
               <label class="req">Title</label>
-              <input class="input" data-edit="title" value="${esc(ad.title)}" maxlength="100">
+              <input class="input" data-edit="title" value="${esc(ad.title)}" maxlength="140">
             </div>
             <div class="field-row">
               <div class="field">
@@ -217,7 +220,7 @@
               <div class="field">
                 <label>Availability</label>
                 <select class="select" data-edit="status">
-                  <option value="active"${ad.status === 'active' ? ' selected' : ''}>Available</option>
+                  <option value="active"${ad.status === 'active' || ad.status === 'rejected' || ad.status === 'pending' ? ' selected' : ''}>Available</option>
                   <option value="sold"${ad.status === 'sold' ? ' selected' : ''}>Sold / given away</option>
                 </select>
               </div>
@@ -253,7 +256,7 @@
         <div class="tiny muted">${esc(PB.timeAgo(ad.created))}</div></td>
       <td>
         <div class="row gap-8" style="justify-content:flex-end;flex-wrap:wrap">
-          <button class="btn btn-outline btn-sm" data-toggle="${esc(id)}">
+          <button class="btn btn-outline btn-sm" data-toggle="${esc(id)}"${local ? ' disabled title="Needs the live site"' : ''}>
             ${ad.status === 'sold' ? 'Mark available' : 'Mark sold'}
           </button>
           <button class="btn btn-outline btn-sm" data-edit-btn="${esc(id)}">
@@ -269,7 +272,7 @@
 
   /* ---------------------------------------------------------------- actions */
 
-  const find = id => (entries.find(e => e.id === id) || {}).ad || null;
+  const find = id => ads.find(a => a.id === id) || null;
 
   /** Runs an async action with a busy toast, surfacing API errors politely. */
   async function guard(fn, okMessage) {
@@ -293,12 +296,12 @@
       () => API.updateAd(id, toPayload(ad, { status: next })),
       next === 'sold' ? 'Marked as sold' : 'Back up for sale',
     );
-    if (done) {
-      // Reflect the change straight away, then reconcile with the server.
-      ad.status = (done.ad && done.ad.status) || next;
-      render();
-      await refresh();
-    }
+    if (!done) return;
+
+    // A rejected ad that is edited goes back to the review queue, so trust
+    // whatever status the server reports rather than the one we asked for.
+    await refresh();
+    render();
   }
 
   async function saveEdit(id) {
@@ -338,8 +341,8 @@
         : 'Ad updated',
       'ok',
     );
-    render();
     await refresh();
+    render();
   }
 
   async function remove(id) {
@@ -350,26 +353,24 @@
     const done = await guard(() => API.deleteAd(id), 'Ad deleted');
     if (!done) return;
 
-    entries = entries.filter(e => e.id !== id);
+    ads = ads.filter(a => a.id !== id);
     editing = null;
     render();
   }
 
-  /** Re-reads every ad from the server so statuses are never stale. */
+  /** Re-reads the member's own list so statuses are never stale. */
   async function refresh() {
-    const ads = await API.getAdsByIds(entries.map(e => e.id));
-    const byId = new Map(ads.map(a => [a.id, a]));
-    entries = entries.map(e => ({ id: e.id, ad: byId.get(e.id) || e.ad }));
+    const result = await API.myAds();
+    ads = result.ads || [];
   }
 
   /* ----------------------------------------------------------------- events */
 
   $('#tableHost').addEventListener('click', async e => {
-    const el = e.target.closest('[data-toggle],[data-edit-btn],[data-del],[data-save],[data-cancel],[data-forget]');
-    if (!el) return;
+    const el = e.target.closest('[data-toggle],[data-edit-btn],[data-del],[data-save],[data-cancel]');
+    if (!el || el.disabled) return;
 
     const d = el.dataset;
-    if (el.disabled) return;
     el.disabled = true;
 
     try {
@@ -383,12 +384,6 @@
       } else if (d.del) await remove(d.del);
       else if (d.save) await saveEdit(d.save);
       else if (d.cancel) { editing = null; render(); }
-      else if (d.forget) {
-        API.forgetAd(d.forget);
-        entries = entries.filter(x => x.id !== d.forget);
-        render();
-        UI.toast('Removed from this list', 'ok');
-      }
     } finally {
       if (el.isConnected) el.disabled = false;
     }
@@ -398,6 +393,14 @@
     const b = e.target.closest('button[data-tab]');
     if (!b) return;
     tab = b.dataset.tab;
+    editing = null;
+    render();
+  });
+
+  // Signing out from anywhere leaves this page showing the wrong person's ads.
+  document.addEventListener('pb:signedout', () => {
+    ads = [];
+    signedOut = true;
     editing = null;
     render();
   });

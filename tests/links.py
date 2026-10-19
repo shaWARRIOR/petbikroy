@@ -10,7 +10,8 @@ SITE = os.path.join(ROOT, 'public')
 ADMIN = os.path.join(SITE, 'admin')
 
 PAGES = ['index.html', 'listings.html', 'ad.html', 'post.html',
-         'my-ads.html', 'favorites.html', '404.html']
+         'my-ads.html', 'favorites.html', 'login.html', 'register.html',
+         'account.html', 'seller.html', '404.html']
 
 # The scripts each page must load, in order. api.js is the data layer that
 # every page now goes through, so it sits between the shared chrome and the
@@ -22,6 +23,10 @@ NEEDS = {
     'post.html':      ['data.js', 'app.js', 'api.js', 'wizard.js', 'post.js'],
     'my-ads.html':    ['data.js', 'app.js', 'api.js', 'my-ads.js'],
     'favorites.html': ['data.js', 'app.js', 'api.js', 'favorites.js'],
+    'login.html':     ['data.js', 'app.js', 'api.js', 'login.js'],
+    'register.html':  ['data.js', 'app.js', 'api.js', 'register.js'],
+    'account.html':   ['data.js', 'app.js', 'api.js', 'account.js'],
+    'seller.html':    ['data.js', 'app.js', 'api.js', 'seller.js'],
     '404.html':       ['data.js', 'app.js', 'api.js', 'not-found.js'],
 }
 

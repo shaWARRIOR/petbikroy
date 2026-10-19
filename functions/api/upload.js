@@ -5,13 +5,14 @@
    ========================================================================== */
 
 import {
-  json, handleError, clientIp, HttpError, badRequest, newId, corsHeaders,
+  json, handleError, HttpError, badRequest, newId, corsHeaders,
 } from '../_lib/http.js';
 import { rateLimit } from '../_lib/db.js';
+import { requireUser } from '../_lib/auth.js';
 
 const MAX_FILES = 6;
 const MAX_BYTES = 5 * 1024 * 1024;          // per file
-const UPLOAD_LIMIT = 40;                     // files per IP per hour
+const UPLOAD_LIMIT = 40;                     // files per member per hour
 const UPLOAD_WINDOW = 3600;
 
 /** Only formats every browser can display. */
@@ -24,6 +25,10 @@ const ALLOWED = new Map([
 
 export async function onRequestPost({ request, env }) {
   try {
+    // Photos only ever exist to be attached to a listing, and listings belong
+    // to accounts. Without this, an anonymous script could fill the bucket.
+    const user = await requireUser(env, request);
+
     if (!env.IMAGES) {
       throw new HttpError(
         'Image storage is not configured. Add an R2 binding named IMAGES to enable uploads.',
@@ -36,7 +41,9 @@ export async function onRequestPost({ request, env }) {
       throw badRequest('Expected multipart/form-data');
     }
 
-    await rateLimit(env, `upload:${clientIp(request)}`, UPLOAD_LIMIT, UPLOAD_WINDOW);
+    // Bucketed per member rather than per address, so a shared connection
+    // cannot spend somebody else's upload quota.
+    await rateLimit(env, `upload:${user.id}`, UPLOAD_LIMIT, UPLOAD_WINDOW);
 
     const form = await request.formData();
     const files = form.getAll('photos').filter(f => f && typeof f === 'object' && 'arrayBuffer' in f);

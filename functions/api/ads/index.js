@@ -1,16 +1,16 @@
 /* ==========================================================================
    GET  /api/ads   — browse ads (filters, sorting, pagination)
-   POST /api/ads   — publish an ad
+   POST /api/ads   — publish an ad (members only)
    ========================================================================== */
 
 import {
-  json, readJson, clientIp, newId, nowIso, HttpError, handleError, corsHeaders,
+  json, readJson, newId, nowIso, HttpError, handleError, corsHeaders,
 } from '../../_lib/http.js';
 import { loadTaxonomy, getSettings, isOn, rateLimit } from '../../_lib/db.js';
 import { validateAd, assertValid } from '../../_lib/validate.js';
 import { parseFilters, queryAds, setPhotos } from '../../_lib/ads.js';
 import { toPublicAd } from '../../_lib/mappers.js';
-import { newOwnerToken, sha256Hex, recordAudit } from '../../_lib/auth.js';
+import { requireUser, recordAudit } from '../../_lib/auth.js';
 
 const POST_WINDOW_SECONDS = 3600;
 
@@ -37,44 +37,53 @@ export async function onRequestGet({ request, env }) {
 
 export async function onRequestPost({ request, env }) {
   try {
+    // Posting is tied to an account, so the rate limit is per member rather
+    // than per IP — a whole cyber cafe can no longer exhaust one visitor's
+    // quota, and opening a new browser no longer resets it.
+    const user = await requireUser(env, request);
+
     const settings = await getSettings(env);
     if (!isOn(settings.posting_enabled)) {
       throw new HttpError('Posting is temporarily disabled by the administrator.', 503);
     }
 
-    // Admins can tune this in the panel; 10/hour stops spam without
-    // getting in the way of a genuine seller posting a litter.
     const limit = Number(settings.post_limit) || 10;
-    const quota = await rateLimit(env, `ad:${clientIp(request)}`, limit, POST_WINDOW_SECONDS);
+    const quota = await rateLimit(env, `ad:${user.id}`, limit, POST_WINDOW_SECONDS);
 
     const body = await readJson(request, 48 * 1024);
+
+    // The account already knows who is posting and which number a buyer
+    // should ring, so a client may leave the contact block out entirely.
+    if (!String(body.contactName ?? '').trim()) body.contactName = user.name;
+    if (!String(body.contactPhone ?? '').trim()) body.contactPhone = user.phone;
+    if (body.contactEmail === undefined) body.contactEmail = user.email || '';
+
     const taxonomy = await loadTaxonomy(env);
     const ad = assertValid(validateAd(body, taxonomy));
 
     const id = newId('ad-');
-    const ownerToken = newOwnerToken();
-    const ownerTokenHash = await sha256Hex(ownerToken);
     const now = nowIso();
     const live = isOn(settings.auto_approve);
 
     await env.DB.prepare(
       `INSERT INTO ads (
-         id, category_id, subcategory, title, description, price, negotiable,
+         id, user_id, category_id, subcategory, title, description, price, negotiable,
          kind, location_id, area, age, gender, vaccinated, condition,
          status, featured, views, contact_name, contact_phone, contact_email,
-         owner_token_hash, rejection_reason, created_at, updated_at, published_at
-       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,?,'',?,?,?)`,
+         rejection_reason, created_at, updated_at, published_at
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,'',?,?,?)`,
     ).bind(
-      id, ad.categoryId, ad.subcategory, ad.title, ad.description, ad.price,
+      id, user.id, ad.categoryId, ad.subcategory, ad.title, ad.description, ad.price,
       ad.negotiable ? 1 : 0, ad.kind, ad.locationId, ad.area, ad.age, ad.gender,
       ad.vaccinated ? 1 : 0, ad.condition, live ? 'active' : 'pending',
-      ad.contactName, ad.contactPhone, ad.contactEmail, ownerTokenHash,
+      ad.contactName, ad.contactPhone, ad.contactEmail,
       now, now, live ? now : null,
     ).run();
 
     if (ad.photos.length) await setPhotos(env, id, ad.photos);
 
     await recordAudit(env, {
+      actorId: user.id, actorEmail: user.phone,
       action: 'ad.created', targetType: 'ad', targetId: id, detail: ad.title,
     });
 
@@ -82,9 +91,6 @@ export async function onRequestPost({ request, env }) {
 
     return json({
       ad: toPublicAd(row, ad.photos.map(k => `/img/${k}`)),
-      // Returned exactly once, never stored in plain text. The browser keeps
-      // it so the poster can later edit or delete their own ad.
-      ownerToken,
       status: row.status,
     }, {
       status: 201,
