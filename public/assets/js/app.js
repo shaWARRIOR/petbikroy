@@ -218,10 +218,21 @@ const UI = (() => {
     const user = api && api.user;
 
     if (user) {
-      return `<a class="header-user" href="account.html" title="${esc(user.name)}">
-        <span class="avatar">${esc(initials(user.name))}</span>
-        <span class="un">${esc(String(user.name).split(/\s+/)[0])}</span>
-      </a>`;
+      return `<div class="acct-menu" data-acct-menu>
+        <button type="button" class="header-user" data-acct-toggle
+                aria-haspopup="menu" aria-expanded="false"
+                aria-label="Account menu" title="${esc(user.name)}">
+          <span class="avatar">${esc(initials(user.name))}</span>
+          <span class="un">${esc(String(user.name).split(/\s+/)[0])}</span>
+          <span class="caret" aria-hidden="true"></span>
+        </button>
+        <div class="acct-pop" data-acct-pop role="menu" hidden>
+          <a role="menuitem" href="account.html">My account</a>
+          <a role="menuitem" href="my-ads.html">My ads</a>
+          <div class="acct-sep" role="separator"></div>
+          <button type="button" role="menuitem" data-signout>Logout</button>
+        </div>
+      </div>`;
     }
 
     // A deploy with no backend has no accounts at all, so offer the local ad
@@ -260,7 +271,7 @@ const UI = (() => {
     }
     return `<a href="account.html">👤 ${esc(user.name)}</a>
       <a href="my-ads.html">📋 My ads</a>
-      <button type="button" data-signout>🚪 Sign out</button>`;
+      <button type="button" data-signout>🚪 Logout</button>`;
   }
 
   /** Re-renders everything that depends on who is signed in. */
@@ -443,6 +454,47 @@ const UI = (() => {
     $('#closeDrawer')?.addEventListener('click', close);
     backdrop?.addEventListener('click', close);
     document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+    /* Account menu. The header is re-rendered whenever the account changes,
+       so the open state lives in the DOM and the handlers are delegated. */
+    const closeAccountMenu = restoreFocus => {
+      $$('[data-acct-menu]').forEach(box => {
+        box.classList.remove('is-open');
+        box.querySelector('[data-acct-toggle]')?.setAttribute('aria-expanded', 'false');
+        const pop = box.querySelector('[data-acct-pop]');
+        if (pop) pop.hidden = true;
+      });
+      if (restoreFocus) $('[data-acct-menu] [data-acct-toggle]')?.focus();
+    };
+
+    document.addEventListener('click', e => {
+      const toggle = e.target.closest && e.target.closest('[data-acct-toggle]');
+      if (toggle) {
+        const box = toggle.closest('[data-acct-menu]');
+        const pop = box.querySelector('[data-acct-pop]');
+        const opening = pop.hidden;
+        closeAccountMenu(false);
+        if (opening) {
+          pop.hidden = false;
+          box.classList.add('is-open');
+          toggle.setAttribute('aria-expanded', 'true');
+        }
+        return;
+      }
+      // A click anywhere else dismisses it; menu links navigate on their own.
+      if (!(e.target.closest && e.target.closest('[data-acct-menu]'))) closeAccountMenu(false);
+    });
+
+    document.addEventListener('keydown', e => {
+      const toggle = e.target.closest && e.target.closest('[data-acct-toggle]');
+      if (e.key === 'Escape' && $('[data-acct-menu].is-open')) {
+        closeAccountMenu(true);
+      } else if (e.key === 'ArrowDown' && toggle) {
+        e.preventDefault();
+        toggle.click();
+        $('[data-acct-pop]:not([hidden]) [role="menuitem"]')?.focus();
+      }
+    });
 
     // Pre-fill the header search from the current URL.
     const p = qs();

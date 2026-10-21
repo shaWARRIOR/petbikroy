@@ -199,6 +199,37 @@ async function main() {
   const $ = sel => doc.querySelector(sel);
 
   try {
+    head('the account menu');
+
+    // The header paints before the session probe settles, then re-renders.
+    await waitFor(() => $('[data-acct-toggle]'), 'the signed-in account button');
+    const toggle = $('[data-acct-toggle]');
+    truthy(toggle, 'the signed-in header has an account button');
+    const menu = $('[data-acct-pop]');
+    truthy(menu, 'the header renders an account menu');
+    eq(menu.hidden, true, 'the menu starts closed');
+    eq(toggle.getAttribute('aria-expanded'), 'false', 'the button starts collapsed');
+
+    toggle.click();
+    await waitFor(() => menu.hidden === false, 'the menu to open');
+    eq(toggle.getAttribute('aria-expanded'), 'true', 'the button reports it is open');
+    eq(menu.querySelector('a[href="account.html"]').textContent.trim(), 'My account',
+       'the first item goes to My account');
+    eq(menu.querySelector('a[href="my-ads.html"]').textContent.trim(), 'My ads',
+       'the second item goes to My ads');
+    eq(menu.querySelector('[data-signout]').textContent.trim(), 'Logout',
+       'the last item logs out');
+
+    doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await waitFor(() => menu.hidden === true, 'Escape to close the menu');
+    eq(toggle.getAttribute('aria-expanded'), 'false', 'the button reports it is closed');
+    eq(doc.activeElement, toggle, 'focus returns to the account button');
+
+    toggle.click();
+    await waitFor(() => menu.hidden === false, 'the menu to reopen');
+    doc.body.click();
+    await waitFor(() => menu.hidden === true, 'a click outside to close the menu');
+
     head('the dashboard lists the listing');
 
     // Wait for the real row: the loading skeleton also renders table rows.

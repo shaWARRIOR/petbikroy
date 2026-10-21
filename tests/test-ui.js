@@ -152,6 +152,23 @@ t('crumb has nav', cr.indexOf('<nav class="crumbs"') > -1);
 t('crumb links first', cr.indexOf('href="index.html"') > -1);
 t('last crumb not a link', cr.indexOf('<span>Final</span>') > -1);
 
+print('--- account menu ---');
+globalThis.window = globalThis;
+window.API = { user: { name: 'Rakib Hasan' }, settled: true, available: true };
+const acct = UI.accountSlot();
+t('signed-in account is a menu button', acct.indexOf('data-acct-toggle') > -1);
+t('account menu starts closed', acct.indexOf('aria-expanded="false"') > -1 && acct.indexOf('data-acct-pop') > -1 && acct.indexOf('hidden') > -1);
+t('menu offers My account', acct.indexOf('href="account.html"') > -1 && acct.indexOf('My account') > -1);
+t('menu offers My ads', acct.indexOf('href="my-ads.html"') > -1 && acct.indexOf('>My ads<') > -1);
+t('menu offers Logout', acct.indexOf('data-signout') > -1 && acct.indexOf('>Logout<') > -1);
+t('only one account toggle', (acct.match(/data-acct-toggle/g) || []).length === 1);
+t('account button names the user', acct.indexOf('Rakib') > -1);
+
+window.API.user = null;
+const guest = UI.accountSlot();
+t('signed-out header offers sign in', guest.indexOf('login.html') > -1 && guest.indexOf('data-acct-toggle') === -1);
+window.API.user = { name: 'Rakib Hasan' };
+
 print('--- listing page state machine (mirrors listings.js) ---');
 function readState(search) {
   const p = new URLSearchParams(search);
