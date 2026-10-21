@@ -151,10 +151,27 @@ const Wizard = (() => {
     return !!file && /^image\//.test(file.type || '') && (file.size || 0) <= MAX_BYTES;
   }
 
+  /* ------------------------------------------------------- photo storage */
+
+  /* The API hands out photo URLs but stores object keys: a URL is the key
+     with this prefix, exactly as photoUrl() in functions/_lib/mappers.js
+     builds it. Editing a listing sends the keys back, so the two directions
+     live together here rather than being retyped in each page. */
+  const PHOTO_PREFIX = '/img/';
+
+  const photoSrc = key => PHOTO_PREFIX + key;
+
+  /** The storage key behind a photo URL, or '' when it is not one of ours. */
+  function photoKey(url) {
+    return (typeof url === 'string' && url.indexOf(PHOTO_PREFIX) === 0)
+      ? url.slice(PHOTO_PREFIX.length)
+      : '';
+  }
+
   return {
     MAX_PHOTOS, MAX_BYTES, TITLE_MIN, TITLE_MAX, DESC_MIN, DESC_MAX, AGE_MAX,
     STEPS, NON_ANIMAL,
     isAnimalCategory, blank, validateStep, validateAll,
-    buildAd, priceFor, photoRoom, photoAccepted, digits,
+    buildAd, priceFor, photoRoom, photoAccepted, photoKey, photoSrc, digits,
   };
 })();

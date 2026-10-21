@@ -727,6 +727,14 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   display: grid; place-items: center; font-size: 15px; line-height: 1;
 }
 .photo-item .rm:hover { background: var(--red); }
+.photo-item .make-cover {
+  position: absolute; bottom: 5px; left: 5px;
+  border: 0; border-radius: 999px; padding: 5px 9px;
+  background: rgba(0, 0, 0, .62); color: #fff;
+  font: 600 10.5px/1 var(--font, system-ui, sans-serif);
+  letter-spacing: .2px; cursor: pointer;
+}
+.photo-item .make-cover:hover { background: var(--green); }
 .photo-item .primary-flag {
   position: absolute; bottom: 0; left: 0; right: 0;
   background: rgba(35, 164, 85, .92); color: #fff;

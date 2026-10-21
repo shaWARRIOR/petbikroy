@@ -20,7 +20,8 @@
     "db:seed:remote": "wrangler d1 execute petbikroy --remote --file=db/seed.sql",
     "test": "bash tests/run-tests.sh",
     "test:api": "bash tests/run-api-tests.sh",
-    "test:admin": "node tests/admin-panel.test.mjs"
+    "test:admin": "node tests/admin-panel.test.mjs",
+    "test:my-ads": "node tests/my-ads.test.mjs"
   },
   "devDependencies": {
     "jsdom": "^26.1.0",

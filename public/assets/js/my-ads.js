@@ -23,6 +23,7 @@
 
   let tab = 'all';
   let editing = null;      // id of the ad open in the inline editor
+  let editPhotos = [];     // [{ url, file? }] — the gallery being edited
   let ads = [];            // every listing the member owns
   let loading = true;
   let signedOut = false;
@@ -39,9 +40,8 @@
    * Rebuilds the full create/edit payload from a loaded ad.
    *
    * PUT replaces the whole record, so a partial edit is not an option.
-   * `photos` is deliberately omitted: the API only touches stored photos when
-   * that field is present, and this page holds image URLs, not storage keys —
-   * sending them back would corrupt the gallery.
+   * `photos` is added by the caller: the API only touches the stored gallery
+   * when that field is present, which is how "mark sold" leaves it alone.
    */
   function toPayload(ad, changes) {
     return {
@@ -64,6 +64,104 @@
       contactEmail: ad.email || ad.contactEmail || '',
       ...(changes || {}),
     };
+  }
+
+  /* --------------------------------------------------------------- photos */
+
+  const MAX_MB = Math.round(Wizard.MAX_BYTES / 1024 / 1024);
+
+  const readAsDataUrl = file => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error(`${file.name} could not be read.`));
+    reader.readAsDataURL(file);
+  });
+
+  /**
+   * The gallery inside the open editor.
+   *
+   * New photos are previewed from the picked file and only uploaded when the
+   * member saves, so cancelling an edit cannot leave objects in the bucket
+   * that nothing points at.
+   */
+  function photoGridHtml() {
+    if (!editPhotos.length) {
+      return '<p class="tiny muted" style="margin:0">'
+        + 'No photos yet — listings with a photo get far more replies.</p>';
+    }
+
+    return editPhotos.map((p, i) => `
+      <div class="photo-item">
+        <img src="${esc(p.url)}" alt="Photo ${i + 1}">
+        ${i === 0
+          ? '<span class="primary-flag">Cover</span>'
+          : `<button type="button" class="make-cover" data-photo-cover="${i}">Make cover</button>`}
+        <button type="button" class="rm" data-photo-rm="${i}"
+                aria-label="Remove photo ${i + 1}">✕</button>
+      </div>`).join('');
+  }
+
+  /** Rewrites just the grid, so unsaved text in the other fields survives. */
+  function renderPhotoGrid() {
+    if (!editing) return;
+    const scope = $(`.editor-row[data-editor="${editing}"]`);
+    if (!scope) return;
+
+    const grid = scope.querySelector('[data-photo-grid]');
+    const add = scope.querySelector('[data-add-photo]');
+    if (grid) grid.innerHTML = photoGridHtml();
+    if (add) add.disabled = editPhotos.length >= Wizard.MAX_PHOTOS;
+  }
+
+  async function addPhotos(fileList) {
+    const target = editing;          // ignore the pick if the editor moved on
+    const room = Wizard.MAX_PHOTOS - editPhotos.length;
+    if (room <= 0) {
+      UI.toast(`A listing can hold up to ${Wizard.MAX_PHOTOS} photos.`, 'err');
+      return;
+    }
+
+    const accepted = [];
+    for (const file of fileList) {
+      if (accepted.length >= room) {
+        UI.toast(`Only ${Wizard.MAX_PHOTOS} photos fit — the rest were skipped.`, 'err');
+        break;
+      }
+      if (!Wizard.photoAccepted(file)) {
+        UI.toast(`${file.name} is not a photo under ${MAX_MB} MB — skipped.`, 'err');
+        continue;
+      }
+      accepted.push(file);
+    }
+    if (!accepted.length) return;
+
+    let previews;
+    try {
+      previews = await Promise.all(accepted.map(readAsDataUrl));
+    } catch (err) {
+      UI.toast(err.message || 'That photo could not be read.', 'err');
+      return;
+    }
+
+    if (editing !== target) return;
+    previews.forEach((url, i) => editPhotos.push({ url, file: accepted[i] }));
+    renderPhotoGrid();
+  }
+
+  /** Uploads whatever was picked in the editor. False when it failed. */
+  async function uploadPending(pending) {
+    try {
+      const values = await API.uploadPhotos(pending.map(p => p.file));
+      values.forEach((value, i) => {
+        // Online the API answers with R2 keys; offline with data URLs.
+        pending[i].url = offline ? value : Wizard.photoSrc(value);
+        delete pending[i].file;
+      });
+      return true;
+    } catch (err) {
+      UI.toast(err.message || 'The photos could not be uploaded.', 'err');
+      return false;
+    }
   }
 
   /* -------------------------------------------------------------- loading */
@@ -230,6 +328,21 @@
               <textarea class="textarea" data-edit="desc"
                         style="min-height:100px">${esc(ad.desc || '')}</textarea>
             </div>
+            <div class="field">
+              <label>Photos</label>
+              <div class="photo-grid" data-photo-grid>${photoGridHtml()}</div>
+              <div class="row gap-8" style="margin-top:12px;align-items:center">
+                <button type="button" class="btn btn-outline btn-sm" data-add-photo
+                        ${editPhotos.length >= Wizard.MAX_PHOTOS ? 'disabled' : ''}>
+                  ${icon('camera', 14)} Add photos
+                </button>
+                <span class="tiny muted">
+                  Up to ${Wizard.MAX_PHOTOS} photos, ${MAX_MB} MB each. The first one is the cover.
+                </span>
+              </div>
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif"
+                     multiple hidden data-photo-input>
+            </div>
             <div class="row gap-8">
               <button class="btn btn-primary btn-sm" data-save="${esc(id)}">Save changes</button>
               <button class="btn btn-ghost btn-sm" data-cancel="1">Cancel</button>
@@ -323,17 +436,35 @@
       return;
     }
 
+    // Photos picked in the editor go up now, so a failed upload aborts the
+    // edit instead of saving a listing whose gallery points at nothing.
+    const pending = editPhotos.filter(p => p.file);
+    if (pending.length && !(await uploadPending(pending))) return;
+
+    // The whole gallery is sent every time, which is what makes a removal or a
+    // new cover stick. Online the API wants storage keys, not the URLs it
+    // handed out; offline the local catalogue keeps data URLs.
+    const photos = offline
+      ? editPhotos.map(p => p.url)
+      : editPhotos.map(p => Wizard.photoKey(p.url));
+    if (!offline && photos.some(k => !k)) {
+      UI.toast('One of the photos cannot be kept — remove it and add it again.', 'err');
+      return;
+    }
+
     const wasRejected = ad.status === 'rejected';
     const done = await guard(() => API.updateAd(id, toPayload(ad, {
       title,
       description: desc,
       price: Number(val('price')) || 0,
       status: val('status'),
+      photos,
     })));
 
     if (!done) return;
 
     editing = null;
+    editPhotos = [];
     const nowStatus = (done.ad && done.ad.status) || ad.status;
     UI.toast(
       wasRejected && nowStatus === 'pending'
@@ -355,6 +486,7 @@
 
     ads = ads.filter(a => a.id !== id);
     editing = null;
+    editPhotos = [];
     render();
   }
 
@@ -366,8 +498,13 @@
 
   /* ----------------------------------------------------------------- events */
 
+  const ACTIONS = [
+    '[data-toggle]', '[data-edit-btn]', '[data-del]', '[data-save]', '[data-cancel]',
+    '[data-add-photo]', '[data-photo-rm]', '[data-photo-cover]',
+  ].join(',');
+
   $('#tableHost').addEventListener('click', async e => {
-    const el = e.target.closest('[data-toggle],[data-edit-btn],[data-del],[data-save],[data-cancel]');
+    const el = e.target.closest(ACTIONS);
     if (!el || el.disabled) return;
 
     const d = el.dataset;
@@ -377,16 +514,43 @@
       if (d.toggle) await toggleStatus(d.toggle);
       else if (d.editBtn) {
         editing = editing === d.editBtn ? null : d.editBtn;
+        // Opening an editor always starts from what the server has, never
+        // from whatever was staged for the previous listing.
+        editPhotos = editing
+          ? ((find(editing) || {}).photos || []).map(url => ({ url }))
+          : [];
         render();
         if (editing) $(`.editor-row[data-editor="${editing}"]`)?.scrollIntoView({
           block: 'center', behavior: 'smooth',
         });
       } else if (d.del) await remove(d.del);
       else if (d.save) await saveEdit(d.save);
-      else if (d.cancel) { editing = null; render(); }
+      else if (d.cancel) { editing = null; editPhotos = []; render(); }
+      else if ('addPhoto' in d) {
+        $(`.editor-row[data-editor="${editing}"] [data-photo-input]`)?.click();
+      } else if ('photoRm' in d) {
+        editPhotos.splice(Number(d.photoRm), 1);
+        renderPhotoGrid();
+      } else if ('photoCover' in d) {
+        const i = Number(d.photoCover);
+        if (i > 0) {
+          editPhotos.unshift(editPhotos.splice(i, 1)[0]);
+          renderPhotoGrid();
+        }
+      }
     } finally {
       if (el.isConnected) el.disabled = false;
     }
+  });
+
+  // Picking files stages them; saveEdit() uploads and sends the new gallery.
+  $('#tableHost').addEventListener('change', async e => {
+    const input = e.target.closest('[data-photo-input]');
+    if (!input) return;
+
+    const files = Array.from(input.files || []);
+    input.value = '';               // so picking the same file twice still fires
+    await addPhotos(files);
   });
 
   $('#tabs').addEventListener('click', e => {
@@ -394,6 +558,7 @@
     if (!b) return;
     tab = b.dataset.tab;
     editing = null;
+    editPhotos = [];
     render();
   });
 
@@ -402,6 +567,7 @@
     ads = [];
     signedOut = true;
     editing = null;
+    editPhotos = [];
     render();
   });
 

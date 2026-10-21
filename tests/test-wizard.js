@@ -201,6 +201,16 @@ t('rejects over limit', Wizard.photoAccepted({ type: 'image/png', size: Wizard.M
 t('rejects non-image', Wizard.photoAccepted({ type: 'application/pdf', size: 10 }) === false);
 t('rejects empty', Wizard.photoAccepted({}) === false);
 t('rejects null', Wizard.photoAccepted(null) === false);
+
+print('--- photo keys ---');
+t('photoSrc prefixes a key', Wizard.photoSrc('ads/2026/10/x.png') === '/img/ads/2026/10/x.png');
+t('photoKey strips the prefix', Wizard.photoKey('/img/ads/2026/10/x.png') === 'ads/2026/10/x.png');
+t('photoKey refuses a foreign URL', Wizard.photoKey('https://example.com/x.png') === '');
+t('photoKey refuses a bare key', Wizard.photoKey('ads/2026/10/x.png') === '');
+t('photoKey refuses a data URL', Wizard.photoKey('data:image/png;base64,AAAA') === '');
+t('photoKey refuses null', Wizard.photoKey(null) === '');
+t('photo round-trips', Wizard.photoKey(Wizard.photoSrc('ads/x.png')) === 'ads/x.png');
+
 const withPhoto = PB.getAd('u-rt');
 t('photos empty -> artwork not array leak', Array.isArray(withPhoto.photos));
 

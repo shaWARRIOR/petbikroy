@@ -165,8 +165,23 @@ export async function fetchPhotos(env, adId) {
   return (res.results ?? []).map(r => photoUrl(r.r2_key));
 }
 
-/** Replaces an ad's photos with the given R2 keys. */
+/**
+ * Replaces an ad's photos with the given R2 keys.
+ *
+ * Removing a photo here has to remove the object too, or every gallery edit
+ * would leave the discarded images in the bucket for good. The rows are the
+ * source of truth, so the objects are deleted only after the batch commits.
+ */
 export async function setPhotos(env, adId, keys) {
+  const existing = await env.DB.prepare(
+    'SELECT r2_key FROM ad_photos WHERE ad_id = ?',
+  ).bind(adId).all();
+
+  const keep = new Set(keys);
+  const dropped = (existing.results ?? [])
+    .map(r => r.r2_key)
+    .filter(k => !keep.has(k));
+
   const stmts = [env.DB.prepare('DELETE FROM ad_photos WHERE ad_id = ?').bind(adId)];
   keys.forEach((key, i) => {
     stmts.push(env.DB.prepare(
@@ -174,6 +189,15 @@ export async function setPhotos(env, adId, keys) {
     ).bind(`${adId}-${i}`, adId, key, i));
   });
   await env.DB.batch(stmts);
+
+  if (dropped.length && env.IMAGES) {
+    try {
+      await env.IMAGES.delete(dropped);
+    } catch (err) {
+      // A stranded object costs storage but must never fail the edit.
+      console.error('R2 cleanup failed', err);
+    }
+  }
 }
 
 /** Aggregate counts for the admin dashboard and the public stat strip. */

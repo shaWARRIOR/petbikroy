@@ -208,15 +208,17 @@ and consider putting `/admin` behind Cloudflare Access.
 
 ## Tests
 
-Three suites, 1,157 assertions, none of them mocked. The front-end suite runs
-the real page modules; the other two talk to a running copy of the site over
-HTTP and exercise real D1, real PBKDF2, real cookies and real R2 uploads.
+Four suites, 1,192 assertions, none of them mocked. The front-end suite runs
+the real page modules. The other three talk to a running copy of the site over
+HTTP — real D1, real PBKDF2, real cookies and real R2 uploads — and the last
+two also drive real pages in a simulated browser.
 
 | Command | Assertions | What it covers |
 |---|---|---|
-| `npm test` | 726 | Front-end logic: data layer, card rendering, filters, validation, links and assets on every page |
-| `npm run test:api` | 360 | Registration, sign-in, ownership and permission checks, moderation, uploads, routing, caching headers |
+| `npm test` | 733 | Front-end logic: data layer, card rendering, filters, validation, links and assets on every page |
+| `npm run test:api` | 369 | Registration, sign-in, ownership and permission checks, moderation, uploads, editing a gallery, routing, caching headers |
 | `npm run test:admin` | 71 | Every admin panel view driven in a simulated browser |
+| `npm run test:my-ads` | 19 | The "My ads" photo editor: preview, remove, re-cover and save a listing's images |
 
 The API suite also fails the build if the client-side and server-side validation
 limits ever disagree, which is the kind of drift that silently rejects input the

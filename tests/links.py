@@ -21,7 +21,7 @@ NEEDS = {
     'listings.html':  ['data.js', 'app.js', 'api.js', 'listings.js'],
     'ad.html':        ['data.js', 'app.js', 'api.js', 'ad.js'],
     'post.html':      ['data.js', 'app.js', 'api.js', 'wizard.js', 'post.js'],
-    'my-ads.html':    ['data.js', 'app.js', 'api.js', 'my-ads.js'],
+    'my-ads.html':    ['data.js', 'app.js', 'api.js', 'wizard.js', 'my-ads.js'],
     'favorites.html': ['data.js', 'app.js', 'api.js', 'favorites.js'],
     'login.html':     ['data.js', 'app.js', 'api.js', 'login.js'],
     'register.html':  ['data.js', 'app.js', 'api.js', 'register.js'],

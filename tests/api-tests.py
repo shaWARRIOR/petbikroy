@@ -1277,6 +1277,42 @@ def test_uploads(api, t, ctx):
     t.truthy(found is not None, 'the ad with photos is listed')
     t.eq(len(found.get('photos', [])), 2, 'listings carry their photos too')
 
+    t.section("editing a listing's photos")
+
+    # The dashboard's editor sends the whole gallery back, so PUT has to honour
+    # a shorter list, a new order, and the absence of the field entirely.
+    r = member.put(f'/api/ads/{ad_id}', valid_ad(
+        title='Puppy with uploaded photos for testing', photos=[keys[1]]))
+    t.eq(r.status, 200, 'the owner can replace the gallery')
+    t.eq(r.json['ad']['photos'], [f'/img/{keys[1]}'],
+         'the kept photo is now the only one')
+
+    t.eq(api.get(f'/img/{keys[0]}').status, 404,
+         'the photo that was removed is deleted from storage')
+
+    without_photos = valid_ad(title='Puppy with uploaded photos for testing')
+    without_photos.pop('photos')
+    r = member.put(f'/api/ads/{ad_id}', without_photos)
+    t.eq(r.status, 200, 'an edit without a photos field is accepted')
+    t.eq(r.json['ad']['photos'], [f'/img/{keys[1]}'],
+         'omitting photos leaves the gallery untouched')
+
+    r = member.put(f'/api/ads/{ad_id}', valid_ad(
+        title='Puppy with uploaded photos for testing',
+        photos=[f'/img/{keys[1]}']))
+    t.eq(r.status, 400, 'a photo URL is refused instead of stored as a key')
+    t.truthy('photos' in r.json.get('details', {}),
+             'the error names the photos field')
+
+    r = member.put(f'/api/ads/{ad_id}', valid_ad(
+        title='Puppy with uploaded photos for testing',
+        photos=[f'ads/fake/{i}.png' for i in range(7)]))
+    t.eq(r.status, 400, 'more than six photos are refused on an edit')
+
+    r = member.get(f'/api/ads/{ad_id}')
+    t.eq(r.json['ad']['photos'], [f'/img/{keys[1]}'],
+         'the rejected edits left the gallery alone')
+
     r = member.delete(f'/api/ads/{ad_id}')
     t.eq(r.status, 200, 'cleanup: the photo ad was deleted')
 

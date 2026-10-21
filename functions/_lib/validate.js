@@ -27,6 +27,18 @@ export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export const digits = v => String(v ?? '').replace(/\D/g, '');
 
 /**
+ * True for an R2 key this app could have issued.
+ *
+ * Photo URLs are `/img/` plus the key, and both look harmless to a naive
+ * character check — so a URL sent back as a key would store the prefix inside
+ * the key and the gallery would return `/img/img/…` afterwards. Refusing it
+ * makes that mistake a 400 instead of silent corruption.
+ */
+const isPhotoKey = p => /^[A-Za-z0-9._/-]+$/.test(p)
+  && !p.includes('..')
+  && !p.replace(/^\/+/, '').startsWith('img/');
+
+/**
  * Validates and normalises an incoming ad payload.
  *
  * @param {object} body      raw request body
@@ -133,7 +145,7 @@ export function validateAd(body, taxonomy) {
         .map(p => str(p, 300))
         // Only accept keys this deployment issued, so nobody can point an ad
         // at an arbitrary URL.
-        .filter(p => /^[A-Za-z0-9._/-]+$/.test(p) && !p.includes('..'));
+        .filter(isPhotoKey);
       if (photos.length !== body.photos.length) fail('photos', 'One or more photos are invalid.');
     }
   }
