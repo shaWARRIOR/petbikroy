@@ -14,9 +14,9 @@
 name = "petbikroy"
 compatibility_date = "2026-10-01"
 
-# Static site lives in public/ so that wrangler.toml, db/, functions/ and
+# Static site lives in frontend/ so that wrangler.toml, db/, functions/ and
 # tests/ are never downloadable — Pages serves exactly this directory.
-pages_build_output_dir = "public"
+pages_build_output_dir = "frontend"
 
 # --------------------------------------------------------------- bindings --
 #

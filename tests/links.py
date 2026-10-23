@@ -6,7 +6,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SITE = os.path.join(ROOT, 'public')
+SITE = os.path.join(ROOT, 'frontend')
 ADMIN = os.path.join(SITE, 'admin')
 
 PAGES = ['index.html', 'listings.html', 'ad.html', 'post.html',
