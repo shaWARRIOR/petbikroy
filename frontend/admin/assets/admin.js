@@ -623,7 +623,7 @@
           ${data.ads.length ? `
           <table>
             <thead>
-              <tr><th>Ad</th><th>Price</th><th>Location</th><th class="right">Posted</th><th></th></tr>
+              <tr><th>Ad</th><th>Price</th><th>Location</th><th class="muted">Auto review</th><th class="right">Posted</th><th></th></tr>
             </thead>
             <tbody>
               ${data.ads.map(ad => `
@@ -639,6 +639,8 @@
                   </td>
                   <td class="nowrap">${ad.kind === 'adoption' ? 'Free' : money(ad.price)}</td>
                   <td class="nowrap small">${esc(ad.area || '—')}</td>
+                  <td class="muted small nowrap" title="${esc(ad.autoReason || '')}">
+                    ${ad.autoReason ? `<span class="badge">${esc(ad.autoDecision || 'held')}</span> ${esc(ad.autoReason)}</td>
                   <td class="right small muted nowrap">${esc(ago(ad.created))}</td>
                   <td class="actions">
                     <button class="btn btn-outline btn-sm" data-act="inspect" data-id="${esc(ad.id)}">Review</button>
@@ -741,6 +743,12 @@
       hint: 'Turn off to pause posting site-wide without losing the page.' },
     { key: 'auto_approve', label: 'Auto-approve new ads', type: 'bool',
       hint: 'On: ads go live instantly. Off: they wait in Needs review.' },
+    { key: 'auto_moderation', label: 'Automated ad review', type: 'bool',
+      hint: 'On: every new ad is screened automatically before it reaches the queue — ' +
+            'obvious spam and off-site attempts are held or rejected. Off: ads skip straight to the queue.' },
+    { key: 'auto_reject', label: 'Auto-reject clear spam', type: 'bool',
+      hint: 'When auto-review is on: obvious fraud/spam is rejected at once. Off: it is held ' +
+            'for a moderator instead of rejected.' },
   ];
 
   async function viewSettings(host) {
@@ -1157,6 +1165,8 @@
 
       ${ad.rejectionReason ? `<div class="field err">Previously rejected: ${esc(ad.rejectionReason)}</div>` : ''}
 
+      ${ad.autoReason ? `<div class="field" title="${esc(ad.autoReason)}">Reviewed automatically: <b>${esc(ad.autoDecision || 'held')}</b> — ${esc(ad.autoReason)}</div>` : ''}
+
       <div style="white-space:pre-wrap;line-height:1.6">${esc(ad.desc || '')}</div>
 
       ${ad.photos && ad.photos.length > 1 ? `
@@ -1169,6 +1179,7 @@
         <dl class="dl mt">
           <dt>Ad ID</dt><dd class="mono">${esc(ad.id)}</dd>
           <dt>Category</dt><dd class="mono">${esc(ad.cat)}</dd>
+          <dt>Auto review</dt><dd>${esc(ad.autoDecision || 'approved')}<br><span class="small muted">${esc(ad.autoReason || 'no automated reason')}</span></dd>
           <dt>Updated</dt><dd>${esc(fmtDate(ad.updated, true))}</dd>
         </dl>
       </details>

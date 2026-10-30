@@ -16,6 +16,7 @@ export const AD_COLUMNS = `
   a.negotiable, a.kind, a.location_id, a.area, a.age, a.gender, a.vaccinated,
   a.condition, a.status, a.featured, a.views, a.contact_name, a.contact_phone,
   a.created_at, a.updated_at, a.published_at, a.rejection_reason,
+  a.auto_decision,
   u.name       AS seller_name,
   u.verified   AS seller_verified,
   u.created_at AS seller_joined`;
@@ -48,6 +49,12 @@ export function toPublicAd(row, photos = [], { adCount } = {}) {
     views: row.views || 0,
     created: row.published_at || row.created_at,
     photos,
+    // The automated moderator's verdict, so "My ads" can tell a seller why an
+    // ad is waiting, and so a non-active ad can show its reason inline. Buyers
+    // never act on it, but it is harmless to carry.
+    autoDecision: row.auto_decision || '',
+    autoReason: row.auto_reason || '',
+    rejectionReason: row.rejection_reason || '',
     desc: row.description,
     seller: {
       // `contact_name` is what the poster typed on this ad; the account name
@@ -86,6 +93,8 @@ export function toAdminAd(row, photos = []) {
     email: row.contact_email || '',
     sellerId: row.user_id || '',
     rejectionReason: row.rejection_reason || '',
+    autoDecision: row.auto_decision || '',
+    autoReason: row.auto_reason || '',
     updated: row.updated_at,
     photoCount: photos.length,
   };

@@ -92,6 +92,8 @@ export async function taxonomyPayload(env) {
 export const DEFAULT_SETTINGS = {
   site_name: 'PetBikroy',
   auto_approve: '1',          // new ads go live immediately
+  auto_moderation: '1',       // screen every new ad automatically
+  auto_reject: '0',           // hold auto-detected spam instead of rejecting
   listings_per_page: '12',
   posting_enabled: '1',
   post_limit: '10',           // ads one visitor may publish per hour

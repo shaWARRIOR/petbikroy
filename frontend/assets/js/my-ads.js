@@ -292,8 +292,16 @@
       ? `<tr class="notice-row"><td colspan="8" style="background:#fdeaea">
            <strong class="small">Needs changes:</strong>
            <span class="small">${esc(ad.rejectionReason)}</span>
+           ${ad.autoReason ? `<div class="tiny muted">Automated review: ${esc(ad.autoReason)}</div>` : ''}
            <span class="tiny muted"> — edit the ad and it goes back to the review queue.</span>
          </td></tr>`
+      : (ad.status === 'pending' || ad.status === 'rejected')
+        && ad.autoDecision && ad.autoReason
+        ? `<tr class="notice-row"><td colspan="8" style="background:#fdf5e4">
+             <strong class="small">Automated review ${esc(ad.autoDecision === 'rejected' ? 'rejected' : 'held')} this ad:</strong>
+             <span class="small">${esc(ad.autoReason)}</span>
+             <span class="tiny muted"> — a moderator will check it, or edit and resubmit.</span>
+           </td></tr>`
       : ad.status === 'pending'
         ? `<tr class="notice-row"><td colspan="8" style="background:#fdf5e4">
              <span class="small">Waiting for a moderator to review this ad.</span>

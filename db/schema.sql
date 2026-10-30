@@ -126,6 +126,14 @@ CREATE TABLE IF NOT EXISTS ads (
   contact_phone     TEXT NOT NULL,
   contact_email     TEXT NOT NULL DEFAULT '',
   rejection_reason  TEXT NOT NULL DEFAULT '',
+  -- Automated-moderation verdict, set when the ad is created and never
+  -- overwritten by a human: 'approved', 'held' or 'rejected'. Empty when
+  -- auto-moderation was disabled at creation time.
+  auto_decision     TEXT NOT NULL DEFAULT ''
+                      CHECK (auto_decision IN ('', 'approved', 'held', 'rejected')),
+  -- The human-readable explanation the moderator produced, e.g. why an ad
+  -- was held or auto-rejected. Shown to the poster in "My ads" and to staff.
+  auto_reason       TEXT NOT NULL DEFAULT '',
   created_at        TEXT NOT NULL,
   updated_at        TEXT NOT NULL,
   published_at      TEXT
@@ -136,6 +144,7 @@ CREATE INDEX IF NOT EXISTS idx_ads_category ON ads(category_id, status);
 CREATE INDEX IF NOT EXISTS idx_ads_location ON ads(location_id, status);
 CREATE INDEX IF NOT EXISTS idx_ads_user     ON ads(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ads_featured ON ads(featured, status);
+CREATE INDEX IF NOT EXISTS idx_ads_auto ON ads(auto_decision, status);
 
 CREATE TABLE IF NOT EXISTS ad_photos (
   id         TEXT PRIMARY KEY,
@@ -202,6 +211,42 @@ CREATE TABLE IF NOT EXISTS settings (
   value      TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- ----------------------------------------------------- messaging --
+
+-- One conversation links a buyer and a seller about a single ad (or, when
+-- `ad_id` is NULL, about nothing in particular). The seller is always the
+-- account that posted the ad; the buyer is the other signed-in member. Keeping
+-- the two roles in separate columns means a query can answer "is this the
+-- person I sold to?" without comparing ids.
+CREATE TABLE IF NOT EXISTS conversations (
+  id             TEXT PRIMARY KEY,
+  ad_id          TEXT REFERENCES ads(id) ON DELETE CASCADE,
+  seller_id      TEXT NOT NULL REFERENCES users(id),
+  buyer_id       TEXT NOT NULL REFERENCES users(id),
+  created_at     TEXT NOT NULL,
+  last_message_at TEXT NOT NULL DEFAULT '',
+  CHECK (seller_id != buyer_id)
+);
+CREATE INDEX IF NOT EXISTS idx_conv_participants
+  ON conversations(seller_id, buyer_id, ad_id);
+CREATE INDEX IF NOT EXISTS idx_conv_buyer ON conversations(buyer_id, last_message_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conv_seller ON conversations(seller_id, last_message_at DESC);
+
+-- The messages themselves. `status` starts as 'sent'; it flips to 'read'
+-- once the recipient opens the conversation, which is how the unread badge is
+-- computed without a separate per-user read-receipt table.
+CREATE TABLE IF NOT EXISTS messages (
+  id              TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  sender_id       TEXT NOT NULL,
+  body            TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'sent'
+                    CHECK (status IN ('sent', 'read')),
+  created_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id, created_at);
 
 -- Per-IP throttling for public write endpoints (posting ads, reports,
 -- uploads, login attempts). Rows are cheap and swept on write.

@@ -204,6 +204,17 @@ const UI = (() => {
     });
   }
 
+  /** Refreshes the messages badge from the server (0 when signed out/offline). */
+  async function updateMessageBadge() {
+    const els = $('[data-msg-count]');
+    if (!els.length) return;
+    const n = (API && API.available && API.user) ? await API.messageUnread() : 0;
+    els.forEach(el => {
+      el.textContent = n;
+      el.classList.toggle('hide', n === 0);
+    });
+  }
+
   /* ------------------------------------------------------------ account */
 
   /**
@@ -251,7 +262,11 @@ const UI = (() => {
   }
 
   function headerActions() {
-    return `<a class="icon-btn" href="favorites.html" aria-label="Favourites">
+    return `<a class="icon-btn" href="messages.html" aria-label="Messages">
+        ${icon('chat', 19)}
+        <span class="badge hide" data-msg-count>0</span>
+      </a>
+      <a class="icon-btn" href="favorites.html" aria-label="Favourites">
         ${icon('heart', 19)}
         <span class="badge hide" data-fav-count>0</span>
       </a>
@@ -513,6 +528,7 @@ const UI = (() => {
 
     updateFavBadge();
     bindFavorites(document);
+    updateMessageBadge();
 
     // The reachability probe normally resolves just after the first paint, so
     // the account controls are settled here rather than blocking the render.
@@ -538,6 +554,6 @@ const UI = (() => {
     ICONS, icon, $, $$, esc, qs, setQuery, debounce, initials, safeNext, LIMITS,
     toast, adCard, renderAds, emptyState, priceHtml,
     accountSlot, headerActions, drawerAccount, updateAccountUI, signOut,
-    bindFavorites, updateFavBadge, header, footer, mountChrome, crumbs,
+    bindFavorites, updateFavBadge, updateMessageBadge, header, footer, mountChrome, crumbs,
   };
 })();

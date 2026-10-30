@@ -162,6 +162,9 @@
           <div class="contact-actions">
             <button class="btn btn-primary btn-block" id="revealPhone">
               ${icon('phone', 17)} Show phone number</button>
+            <button class="btn btn-accent btn-block" id="messageSeller"
+                  style="display:${sold || mine ? 'none' : 'block'}">
+              ${icon('chat', 17)} Message seller</button>
             <button class="btn btn-outline btn-block" id="favBtn2">
               ${icon('heart', 17)} <span id="favLabel">Save ad</span></button>
             <button class="btn btn-ghost btn-block btn-sm" id="reportBtn">
@@ -230,6 +233,35 @@
       </div>`;
     }
 
+    // A non-active ad (held, awaiting review, or rejected) explains why, so the
+    // person who posted it can see the automated moderator's verdict inline —
+    // the same messages "My ads" already shows.
+    function noticeHtml() {
+      if (ad.status === 'active') return '';
+      const rejected = ad.status === 'rejected' || ad.autoDecision === 'rejected';
+      if (rejected && ad.rejectionReason) {
+        return `<div class="card card-pad" style="background:#fdeaea">
+          <strong class="small">Needs changes:</strong>
+          <span class="small">${esc(ad.rejectionReason)}</span>
+          ${ad.autoReason ? `<div class="tiny muted">Automated review: ${esc(ad.autoReason)}</div>` : ''}
+          <span class="tiny muted"> — edit the ad and it goes back to the review queue.</span>
+        </div>`;
+      }
+      if ((ad.status === 'pending' || rejected) && ad.autoDecision && ad.autoReason) {
+        return `<div class="card card-pad" style="background:#fdf5e4">
+          <strong class="small">Automated review ${esc(ad.autoDecision === 'rejected' ? 'rejected' : 'held')} this ad:</strong>
+          <span class="small">${esc(ad.autoReason)}</span>
+          <span class="tiny muted"> — a moderator will check it, or edit and resubmit.</span>
+        </div>`;
+      }
+      if (ad.status === 'pending') {
+        return `<div class="card card-pad" style="background:#fdf5e4">
+          <span class="small">Waiting for a moderator to review this ad.</span>
+        </div>`;
+      }
+      return '';
+    }
+
     function render() {
       $('#crumbs').innerHTML = UI.crumbs([
         { label: 'Home', href: 'index.html' },
@@ -266,6 +298,8 @@
             <h3>Description</h3>
             <p class="desc">${esc(ad.desc || 'The seller has not added a description.')}</p>
           </div>
+
+          ${noticeHtml()}
         </div>
 
         ${sidebarHtml()}
@@ -324,6 +358,8 @@
         $('#revealPhone').classList.add('hide');
       });
 
+      bindMessage();
+
       bindReport();
 
       $('#deleteMine')?.addEventListener('click', async () => {
@@ -334,6 +370,32 @@
           setTimeout(() => { location.href = 'my-ads.html'; }, 600);
         } catch (err) {
           UI.toast(err.message || 'The ad could not be deleted.', 'err');
+        }
+      });
+    }
+
+    /* ---------------------------------------------------------- message */
+
+    async function bindMessage() {
+      const btn = $('#messageSeller');
+      if (!btn) return;
+
+      btn.addEventListener('click', async () => {
+        // Messaging needs an account, which needs the live site.
+        if (!API.available || !API.user) {
+          location.href = `login.html?next=${encodeURIComponent('messages.html')}`;
+          return;
+        }
+
+        const sendBtn = btn;
+        sendBtn.disabled = true;
+        try {
+          const { conversation } = await API.messageStart({ adId: id });
+          UI.toast('Starting a conversation with the seller', 'ok');
+          location.href = `messages.html?conv=${encodeURIComponent(conversation.id)}`;
+        } catch (err) {
+          UI.toast(err.message || 'The message could not be started.', 'err');
+          sendBtn.disabled = false;
         }
       });
     }

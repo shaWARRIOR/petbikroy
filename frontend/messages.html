@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Messages — PetBikroy</title>
+<meta name="description" content="Chat with sellers about the pets and ads you are interested in on PetBikroy.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<style>
+  .chat {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 0;
+    height: calc(100vh - 120px);
+    max-width: 1000px;
+    margin: 12px auto 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .chat-list {
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .chat-list-head {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+    background: #faf7f0;
+  }
+  .chat-list-head h2 { margin: 0; font-size: 16px; }
+  .chat-thread {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    display: flex;
+    gap: 12px;
+    align-items: start;
+    position: relative;
+  }
+  .chat-thread:hover { background: #faf7f0; }
+  .chat-thread.is-active { background: #fff3e6; }
+  .chat-thread .avatar {
+    flex: none;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700;
+    color: #fff;
+    background: #b07d4b;
+  }
+  .chat-thread .body { min-width: 0; flex: 1; }
+  .chat-thread .top-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px;
+  }
+  .chat-thread .who { font-weight: 600; color: #232323; }
+  .chat-thread .when { font-size: 11px; color: #8b959d; }
+  .chat-thread .preview {
+    font-size: 13px; color: #6b7680;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-top: 2px;
+  }
+  .chat-thread .dot {
+    position: absolute; top: 12px; right: 14px;
+  }
+  .chat-window { display: flex; flex-direction: column; min-height: 0; }
+  .chat-window-head {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    background: #faf7f0;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .chat-window-head .who { font-weight: 600; }
+  .chat-window-head .ad {
+    font-size: 12px; color: #6b7680;
+    display: inline-block;
+  }
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+  .bubble {
+    max-width: 72%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .bubble .meta { font-size: 10px; color: rgba(0,0,0,.45); margin-top: 3px; }
+  .bubble.mine { align-self: flex-end; background: #e9d6b8; border-bottom-right-radius: 4px; }
+  .bubble.theirs { align-self: flex-start; background: #f1f4f6; border-bottom-left-radius: 4px; }
+  .bubble .from { font-size: 11px; font-weight: 600; color: #6b7680; margin-bottom: 2px; }
+  .chat-composer {
+    border-top: 1px solid var(--line);
+    padding: 12px 16px;
+    display: flex; gap: 10px; align-items: center;
+    background: #faf7f0;
+  }
+  .chat-composer textarea {
+    flex: 1;
+    resize: none;
+    height: 44px;
+    max-height: 120px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font: inherit;
+  }
+  .chat-empty {
+    display: grid; place-items: center;
+    height: 100%;
+    color: #8b959d;
+    text-align: center;
+  }
+  .chat-empty .big { font-size: 40px; }
+  @media (max-width: 720px) {
+    .chat { grid-template-columns: 1fr; height: calc(100vh - 100px); }
+    .chat-list.is-hidden { display: none; }
+    .chat-window.is-hidden { display: none; }
+    .chat-back { display: inline-block; }
+  }
+  .chat-back { display: none; }
+</style>
+</head>
+<body>
+
+<noscript>
+  <div style="max-width:1000px;margin:16px auto;padding:14px 18px;border:1px solid #f6dfb8;background:#fff8ec;border-radius:10px;font:14px/1.5 system-ui,sans-serif;color:#7c5a14">
+    <strong>JavaScript is turned off.</strong> Your messages are stored on your PetBikroy
+    account, so this page needs JavaScript enabled to sign in and show your conversations.
+  </div>
+</noscript>
+
+<main class="page" id="main">
+  <div class="wrap">
+    <div id="crumbs"></div>
+
+    <div class="row gap-12" style="flex-wrap:wrap;margin:8px 0 8px">
+      <h1 style="margin:0">💬 Messages</h1>
+      <span class="tag" id="threadCount">0</span>
+    </div>
+
+    <div class="chat" id="chat">
+      <section class="chat-list" id="chatList">
+        <div class="chat-list-head">
+          <h2>Conversations</h2>
+        </div>
+        <div id="threadHost"></div>
+      </section>
+
+      <section class="chat-window" id="chatWindow">
+        <div class="chat-empty" id="chatEmpty">
+          <div>
+            <div class="big">💬</div>
+            <p style="margin:8px 0 0">Choose a conversation to start chatting.</p>
+            <p class="tiny muted" style="margin-top:4px">Buyers and sellers message each other
+              about a specific ad — nothing leaves this site.</p>
+          </div>
+        </div>
+        <div class="is-hidden" id="chatActive">
+          <div class="chat-window-head">
+            <button class="icon-btn chat-back" id="chatBack" aria-label="Back to messages">←</button>
+            <span class="avatar" id="winAvatar">?</span>
+            <div>
+              <div class="who" id="winWho">—</div>
+              <a class="ad" id="winAd" href="#"></a>
+            </div>
+          </div>
+          <div class="chat-messages" id="msgBox"></div>
+          <form class="chat-composer" id="composer">
+            <textarea id="msgInput" placeholder="Message… maxlength 4000" rows="1"></textarea>
+            <button class="btn btn-primary" type="submit" id="sendBtn">Send</button>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/messages.js"></script>
+</body>
+</html>

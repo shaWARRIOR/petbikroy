@@ -456,6 +456,61 @@ window.API = (() => {
         throw err;
       }
     },
+
+    /* ---------------------------------------------------------- messages */
+
+    /** Total unread messages, for the header badge. */
+    async messageUnread() {
+      if (!this.available) return 0;
+      try {
+        return (await this.request('GET', '/api/messages/unread')).total || 0;
+      } catch {
+        return 0;
+      }
+    },
+
+    /** Every message thread, newest last message first. */
+    async messageConversations() {
+      if (!this.available) return [];
+      try {
+        return (await this.request('GET', '/api/messages/conversations')).conversations || [];
+      } catch {
+        return [];
+      }
+    },
+
+    /** One thread with its messages. */
+    async messageMessages(convId) {
+      if (!this.available) return null;
+      try {
+        return await this.request('GET', `/api/messages/conversations/${encodeURIComponent(convId)}`);
+      } catch (err) {
+        if (err.status === 404) return null;
+        throw err;
+      }
+    },
+
+    /** Start (or resume) a thread with a seller, dropping the first message. */
+    async messageStart({ adId, sellerId, body }) {
+      if (!this.available) throw new Error('Messaging needs the live site.');
+      return this.request('POST', '/api/messages/conversations', { adId, sellerId, message: body });
+    },
+
+    /** Send a message in an existing thread. */
+    async messageSend(convId, body) {
+      if (!this.available) throw new Error('Messaging needs the live site.');
+      return this.request('POST', `/api/messages/conversations/${encodeURIComponent(convId)}/messages`, { message: body });
+    },
+
+    /** Mark a thread as read. */
+    async messageRead(convId) {
+      if (!this.available) return;
+      try {
+        return await this.request('PATCH', `/api/messages/conversations/${encodeURIComponent(convId)}/read`);
+      } catch {
+        return null;
+      }
+    },
   };
 
   /* -------------------------------------------------------------- helpers */

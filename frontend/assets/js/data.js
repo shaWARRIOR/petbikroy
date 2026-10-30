@@ -481,6 +481,35 @@ const PB = (() => {
       desc: `Muscovy ducklings, three weeks old and strong on their feet.\n\nMuscovy is the best duck breed for home rearing — they grow fast, eat less than chickens and are resistant to most local diseases.\n\nPrice is per duckling, minimum order 10. FCR and feeding guidance provided with every order. Delivery across Barishal division.`,
     },
 
+    // ---- moderation demo ads: flagged by the automated reviewer ----
+    {
+      id: 'seed-35', cat: 'dogs', sub: 'Local / Deshi',
+      title: 'AMAZING PUPPY BUY NOW CHEAP!!! best deal ever',
+      price: 500, negotiable: false, loc: 'dhaka', area: 'Uttara',
+      age: '2 months', gender: 'Male', vaccinated: false, condition: 'New',
+      views: 42, featured: false, status: 'active',
+      created: '2026-10-18T06:10:00+06:00',
+      seller: { name: 'K9 Kennel Dhaka', joined: '2020-03-08', verified: true, ads: 6 },
+      art: [art(351,'#d9a55a'), art(352,'#c98f47')],
+      desc: `AMAZING PUPPY!!! BUY NOW!!! Best deal ever!!! Visit www.free-puppy-bd.com/order for
+      photos and pricing. We have unlimited puppies, click the link and order today.`,
+    },
+
+    {
+      id: 'seed-36', cat: 'cats', sub: 'Local / Deshi',
+      title: 'Free kitten — message us to claim yours today',
+      price: 0, negotiable: false, loc: 'dhaka', area: 'Mirpur',
+      age: '2 months', gender: 'Female', vaccinated: false, condition: 'Used',
+      views: 88, featured: false, status: 'active',
+      created: '2026-10-18T07:25:00+06:00',
+      seller: { name: 'Aqua House BD', joined: '2021-06-15', verified: true, ads: 9 },
+      art: [art(361,'#c9c3d4'), art(362,'#b8b0c6')],
+      desc: `These kittens are free — just pay for collection.
+
+Do not chat on this site. Message our driver on WhatsApp at 01711000000 right now to
+      arrange pickup. Limited stock, first caller wins. Payment by bKash only.`,
+    },
+
     // ---- user-posted ad lives here too (id starts with 'u-') ----
   ];
 

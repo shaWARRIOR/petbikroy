@@ -20,9 +20,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { hashPassword } from '../functions/_lib/auth.js';
+import { scoreAd } from '../functions/_lib/moderation.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SOURCE = join(ROOT, 'public/assets/js/data.js');
+const SOURCE = join(ROOT, 'frontend/assets/js/data.js');
 const OUT = join(ROOT, 'db/seed.sql');
 
 /**
@@ -153,13 +154,52 @@ for (const m of members) {
   out('');
 }
 
+/* default settings — declared up front so the ad loop can mirror the live
+   handler's status rule (auto_reject off => held/rejected ads sit in pending). */
+const settings = {
+  site_name: 'PetBikroy',
+  auto_approve: '1',
+  auto_moderation: '1',
+  auto_reject: '0',
+  listings_per_page: '12',
+  posting_enabled: '1',
+  post_limit: '10',
+  signup_limit: '10',
+  contact_email: 'hello@petbikroy.test',
+};
+
 /* ads */
 out('-- ------------------------------------------------------------------ demo ads --');
 out('');
 for (const ad of SEED_ADS) {
   const owner = byName.get(ad.seller.name);
   const created = ts(ad.created);
-  const status = ad.status === 'sold' ? 'sold' : 'active';
+
+  // Screen the demo ad the same way a live one would be, so the catalogue
+  // records the real auto-decision (and reason) the reviewer would have made.
+  const { decision, reasons } = scoreAd(
+    {
+      category: ad.cat,
+      title: ad.title,
+      description: ad.desc,
+      contact_name: ad.seller.name,
+      contact_phone: owner.phone,
+      contact_email: owner.email,
+    },
+    { isDuplicate: false },
+  );
+  const autoDecision = decision;   // 'approved' | 'held' | 'rejected'
+  const autoReason = reasons.join(' ');
+
+  // Status mirrors the posting handler: approved ads publish, and — with the
+  // default auto_reject off — held/rejected ads wait in the review queue.
+  const status = ad.status === 'sold'
+    ? 'sold'
+    : decision === 'approved'
+      ? 'active'
+      : settings.auto_reject === '1' && decision === 'rejected'
+        ? 'rejected'
+        : 'pending';
   const kind = ad.price > 0 ? 'sale' : 'adoption';
   const published = created;
 
@@ -167,6 +207,7 @@ for (const ad of SEED_ADS) {
   id, user_id, category_id, subcategory, title, description, price, negotiable, kind,
   location_id, area, age, gender, vaccinated, condition, status, featured, views,
   contact_name, contact_phone, contact_email, rejection_reason,
+  auto_decision, auto_reason,
   created_at, updated_at, published_at
 ) VALUES (
   ${q(ad.id)}, ${q(owner.id)}, ${q(ad.cat)}, ${q(ad.sub)}, ${q(ad.title)}, ${q(ad.desc)},
@@ -174,6 +215,7 @@ for (const ad of SEED_ADS) {
   ${q(ad.loc)}, ${q(ad.area)}, ${q(ad.age || '')}, ${q(ad.gender || '')},
   ${b(ad.vaccinated)}, ${q(ad.condition || 'New')}, ${q(status)}, ${b(ad.featured)}, ${n(ad.views)},
   ${q(ad.seller.name)}, ${q(owner.phone)}, ${q(owner.email)}, '',
+  ${q(autoDecision)}, ${q(autoReason)},
   ${q(created)}, ${q(created)}, ${q(published)}
 );`);
   out('');
@@ -182,15 +224,6 @@ for (const ad of SEED_ADS) {
 /* default settings */
 out('-- ---------------------------------------------------------------- settings --');
 out('');
-const settings = {
-  site_name: 'PetBikroy',
-  auto_approve: '1',
-  listings_per_page: '12',
-  posting_enabled: '1',
-  post_limit: '10',
-  signup_limit: '10',
-  contact_email: 'hello@petbikroy.test',
-};
 for (const [k, v] of Object.entries(settings)) {
   out(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (${q(k)}, ${q(v)}, ${q(new Date().toISOString())});`);
 }

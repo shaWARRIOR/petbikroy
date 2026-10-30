@@ -13,6 +13,8 @@ const SCHEMA = {
   site_name:         { type: 'string', max: 60 },
   contact_email:     { type: 'string', max: 160 },
   auto_approve:      { type: 'bool' },
+  auto_moderation:   { type: 'bool' },
+  auto_reject:       { type: 'bool' },
   posting_enabled:   { type: 'bool' },
   listings_per_page: { type: 'int', min: 4, max: 48 },
   post_limit:        { type: 'int', min: 1, max: 100 },
