@@ -282,6 +282,48 @@ async function main() {
     truthy(text($('#view')).includes(ADMIN_EMAIL), 'the signed-in admin is listed');
     truthy(doc.querySelector('[data-act="newadmin"]'), 'an Add admin button is offered');
 
+    // A Remove button is offered for every account that is not the signed-in
+    // admin — you cannot remove yourself.
+    const removeButtons = () =>
+      [...doc.querySelectorAll('#view tbody tr [data-act="removeadmin"]')];
+    truthy(removeButtons().length > 0, 'a Remove button is offered for other admins');
+    truthy(removeButtons().every(b => b.dataset.email !== ADMIN_EMAIL),
+           'your own account has no Remove button');
+
+    // End-to-end: remove a non-self admin, then restore it, so the team list
+    // is left unchanged for the next run. (Removing yourself is impossible:
+    // the backend keeps at least one active admin.)
+    const listAdmins = async () =>
+      (await (await fetch(`${BASE}/api/admin/admins`, { headers: { cookie } })).json()).admins;
+    const other = ((await listAdmins()).find(a => a.email !== ADMIN_EMAIL)) || null;
+    if (other) {
+      const removeBtn = () =>
+        doc.querySelector(`[data-act="removeadmin"][data-email="${other.email}"]`);
+      removeBtn().click();
+      await waitFor(() => doc.querySelector('.modal-back'), 'the remove dialog to open');
+      truthy(text(doc.querySelector('.modal')).includes('sign them out')
+             || text(doc.querySelector('.modal')).includes('cannot be undone'),
+             'the remove dialog warns the action is irreversible');
+      doc.querySelector('.modal-back [data-x="ok"]').click();
+      await waitFor(() => !doc.querySelector('.modal-back'), 'the remove dialog to close');
+      try {
+        await waitFor(async () => !(await listAdmins()).some(a => a.email === other.email),
+          'the admin to disappear from the server');
+      } finally {
+        // Restore it so the team list is unchanged for the next run.
+        await fetch(`${BASE}/api/admin/admins`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ email: other.email, name: other.name,
+                                 role: other.role, password: 'restored-pass-1234' }),
+        });
+        truthy((await listAdmins()).some(a => a.email === other.email),
+               'the admin is restored server-side');
+      }
+    } else {
+      truthy(true, 'no other admin to remove (nothing to do)');
+    }
+
     // The modal flow: open the create-admin dialog, then cancel it.
     doc.querySelector('[data-act="newadmin"]').click();
     await waitFor(() => doc.querySelector('.modal-back'), 'the create dialog to open');

@@ -841,6 +841,10 @@
                             data-id="${esc(a.id)}" data-email="${esc(a.email)}"
                             data-name="${esc(a.name || '')}" data-role="${esc(a.role)}"
                             data-active="${a.is_active ? '1' : '0'}">Edit</button>
+                    ${a.id === (state.admin && state.admin.id)
+                      ? '<span class="small muted nowrap">You</span>'
+                      : `<button class="btn btn-danger-outline btn-sm" data-act="removeadmin"
+                           data-id="${esc(a.id)}" data-email="${esc(a.email)}">Remove</button>`}
                   </td>
                 </tr>`).join('')}
             </tbody>
@@ -1432,6 +1436,20 @@
           if (await openAdminForm(existing)) route();
           break;
         }
+
+        case 'removeadmin': {
+          const email = el.dataset.email;
+          const msg =
+            `Remove ${email}?\n` +
+            `This signs them out and deletes their account. This cannot be undone.`;
+          if (await confirmDialog('Remove admin account', msg, 'Remove', true)) {
+            await api.delete(`/api/admin/admins/${encodeURIComponent(id)}`);
+            toast(`Removed ${email}`, 'ok');
+            route();
+            refreshBadges();
+          }
+          break;
+        }
       }
     } catch (err) {
       if (err.status === 401) return showLogin('Your session expired. Sign in again.');
@@ -1460,6 +1478,12 @@
       showApp(admin);
       if (!location.hash) go('overview');
       await route();
+      // route() can call showLogin() if its first data fetch returns a
+      // transient 401 (the session cookie is not guaranteed to be in flight
+      // for that request yet). showLogin() also clears state.admin, so use the
+      // local `admin` to re-assert the app and keep the login screen from
+      // popping back onto the screen right after sign-in.
+      if (admin) showApp(admin);
       refreshBadges();
       toast(`Welcome back, ${admin.name || admin.email}`);
     } catch (err) {

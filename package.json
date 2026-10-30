@@ -21,6 +21,7 @@
     "test": "bash tests/run-tests.sh",
     "test:api": "bash tests/run-api-tests.sh",
     "test:admin": "node tests/admin-panel.test.mjs",
+    "test:admin-login": "node tests/admin-login.test.mjs",
     "test:my-ads": "node tests/my-ads.test.mjs"
   },
   "devDependencies": {
