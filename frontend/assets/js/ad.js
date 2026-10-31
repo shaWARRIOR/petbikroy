@@ -100,10 +100,12 @@
     const phone = ad.phone || ad.contactPhone || '';
     const email = ad.email || ad.contactEmail || '';
 
-    // canManage comes from the server: true when the signed-in member owns
-    // this listing, or a moderator is signed in. Offline there is no server
-    // verdict, so fall back to "did this browser create it?".
-    const mine = ad.canManage === true
+    // `isOwner` comes from the server: true only when the signed-in member
+    // posted this listing. `canManage` is broader — it is also true for a
+    // moderator, who must NOT see "This is your ad" on ads they do not own.
+    // Offline there is no server verdict, so fall back to
+    // "did this browser create it?".
+    const mine = ad.isOwner === true
       || (ad.canManage === undefined && PB.isUserAd(ad.id));
 
     // The account behind the listing, when the server told us about one.

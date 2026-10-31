@@ -45,7 +45,11 @@ export async function onRequestGet({ request, env, params }) {
       getAdminSession(env, request),
       getUserSession(env, request),
     ]);
-    const canManage = Boolean(admin || (user && user.id === row.user_id));
+    // `isOwner` is the member who posted the ad; `canManage` also covers a
+    // moderator. They are kept separate so the page can show the owner card
+    // only to the actual poster, even when a moderator is browsing.
+    const isOwner = Boolean(user && user.id === row.user_id);
+    const canManage = Boolean(admin || isOwner);
 
     // Draft or rejected ads are visible only to their owner or a moderator.
     if (row.status !== 'active' && row.status !== 'sold' && !canManage) {
@@ -54,7 +58,7 @@ export async function onRequestGet({ request, env, params }) {
 
     const photos = await fetchPhotos(env, row.id);
     return json({
-      ad: toPublicAdDetail(row, photos, { canManage }),
+      ad: toPublicAdDetail(row, photos, { canManage, isOwner }),
       rejectionReason: canManage ? (row.rejection_reason || '') : '',
     }, {
       // Never cacheable: the body depends on who is asking. `canManage` and
@@ -136,7 +140,7 @@ export async function onRequestPut({ request, env, params }) {
     const photos = await fetchPhotos(env, params.id);
 
     return json({
-      ad: toPublicAdDetail(updated, photos, { canManage: true }),
+      ad: toPublicAdDetail(updated, photos, { canManage: true, isOwner: Boolean(user && user.id === updated.user_id) }),
       rejectionReason: updated.rejection_reason || '',
     });
   } catch (e) {

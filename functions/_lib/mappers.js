@@ -75,13 +75,17 @@ export function toPublicAd(row, photos = [], { adCount } = {}) {
  * needs it on the ad page, but shipping it with every search result would turn
  * the whole catalogue into a phone-book in one request.
  */
-export function toPublicAdDetail(row, photos = [], { canManage = false } = {}) {
+export function toPublicAdDetail(row, photos = [], { canManage = false, isOwner = false } = {}) {
   return {
     ...toPublicAd(row, photos),
     phone: row.contact_phone,
     email: row.contact_email || '',
     // True when the caller may edit or delete: the signed-in owner, or staff.
     canManage,
+    // True only when the caller is the member who posted this ad. An admin can
+    // manage without owning it, and the public page must not treat a moderator
+    // as the owner (it would show "This is your ad" on every ad).
+    isOwner,
   };
 }
 
