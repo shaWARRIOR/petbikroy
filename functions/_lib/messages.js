@@ -103,7 +103,7 @@ export async function getConversation(env, convId, userId) {
   const conv = await loadConversation(env, convId, userId);
   if (!conv) return null;
 
-  const [messages, otherName] = await Promise.all([
+  const [messages, otherNameText] = await Promise.all([
     env.DB.prepare(
       'SELECT body, created_at, sender_id, status FROM messages '
       + 'WHERE conversation_id = ? ORDER BY created_at ASC, id ASC',
@@ -113,7 +113,7 @@ export async function getConversation(env, convId, userId) {
 
   return {
     conversation: conv,
-    otherName,
+    otherName: otherNameText,
     messages: (messages.results ?? []).map(m => ({
       id: m.id,
       senderId: m.sender_id,

@@ -640,7 +640,10 @@
                   <td class="nowrap">${ad.kind === 'adoption' ? 'Free' : money(ad.price)}</td>
                   <td class="nowrap small">${esc(ad.area || '—')}</td>
                   <td class="muted small nowrap" title="${esc(ad.autoReason || '')}">
-                    ${ad.autoReason ? `<span class="badge">${esc(ad.autoDecision || 'held')}</span> ${esc(ad.autoReason)}</td>
+                    ${ad.autoReason
+                      ? `<span class="badge">${esc(ad.autoDecision || 'held')}</span> ${esc(ad.autoReason)}`
+                      : ''}
+                  </td>
                   <td class="right small muted nowrap">${esc(ago(ad.created))}</td>
                   <td class="actions">
                     <button class="btn btn-outline btn-sm" data-act="inspect" data-id="${esc(ad.id)}">Review</button>

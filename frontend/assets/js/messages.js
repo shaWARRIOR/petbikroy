@@ -88,7 +88,7 @@
       </div>`;
     }).join('');
 
-    $('[data-thread]').forEach(el => {
+    document.querySelectorAll('[data-thread]').forEach((el) => {
       el.addEventListener('click', () => openThread(el.dataset.thread));
     });
   }
