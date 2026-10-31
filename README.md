@@ -71,6 +71,27 @@ Everything runs on Cloudflare's free tier.
 
 ---
 
+## Getting started
+
+The front end is static; the API is Cloudflare Pages Functions backed by D1 and
+R2. Before the site does anything, the local D1 database has to exist and carry
+the current schema — the schema is **not** applied automatically, so skipping
+this step makes every query that touches a table column fail, which shows up as
+listings and "My ads" spinning on a loading skeleton forever.
+
+```sh
+npm run db:create      # create the local D1 database (petbikroy)
+npm run db:schema      # create the tables and indexes
+npm run db:seed        # insert the demo categories, members and listings
+npm run dev            # start the local site (front end + API)
+```
+
+`npm run dev` serves the `frontend/` directory and the API on
+`http://localhost:8788`. For a production deploy, run `db:schema:remote` and
+`db:seed:remote` against the real D1 instead of `db:schema`/`db:seed`.
+
+---
+
 ## Architecture
 
 ```

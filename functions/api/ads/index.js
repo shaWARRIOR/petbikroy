@@ -107,7 +107,7 @@ export async function onRequestPost({ request, env }) {
          status, featured, views, contact_name, contact_phone, contact_email,
          rejection_reason, auto_decision, auto_reason,
          created_at, updated_at, published_at
-       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(
       id, user.id, ad.categoryId, ad.subcategory, ad.title, ad.description, ad.price,
       ad.negotiable ? 1 : 0, ad.kind, ad.locationId, ad.area, ad.age, ad.gender,

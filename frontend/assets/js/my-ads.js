@@ -26,6 +26,7 @@
   let editPhotos = [];     // [{ url, file? }] — the gallery being edited
   let ads = [];            // every listing the member owns
   let loading = true;
+  let loadError = null;    // set when the list could not be fetched
   let signedOut = false;
   let offline = false;
 
@@ -168,12 +169,20 @@
 
   async function load() {
     loading = true;
+    loadError = null;
     await API.ready;
 
-    const result = await API.myAds();
-    ads = result.ads || [];
-    signedOut = result.signedOut === true;
-    offline = result.offline === true;
+    // A failed list must never leave the page stuck on the skeleton: flip
+    // `loading` off and show an error with a retry instead, whatever the cause
+    // (offline API, a server error, or a database that is not migrated).
+    try {
+      const result = await API.myAds();
+      ads = result.ads || [];
+      signedOut = result.signedOut === true;
+      offline = result.offline === true;
+    } catch (err) {
+      loadError = (err && err.message) || 'Could not load your ads.';
+    }
     loading = false;
   }
 
@@ -244,6 +253,16 @@
           + '<td><div class="skeleton" style="height:18px"></div></td>'
           + '<td><div class="skeleton" style="height:18px"></div></td></tr>').join('')}
       </tbody></table></div>`;
+      return;
+    }
+
+    if (loadError) {
+      host.innerHTML = `<div class="card" style="padding:26px;text-align:center;max-width:520px;margin:0 auto">
+        <div style="font-size:40px">⚠️</div>
+        <h3 style="margin:8px 0">We could not load your ads</h3>
+        <p class="muted small" style="margin-bottom:16px">${esc(loadError)}</p>
+        <button type="button" class="btn btn-primary" data-reload>Try again</button>
+      </div>`;
       return;
     }
 
@@ -508,7 +527,7 @@
 
   const ACTIONS = [
     '[data-toggle]', '[data-edit-btn]', '[data-del]', '[data-save]', '[data-cancel]',
-    '[data-add-photo]', '[data-photo-rm]', '[data-photo-cover]',
+    '[data-add-photo]', '[data-photo-rm]', '[data-photo-cover]', '[data-reload]',
   ].join(',');
 
   $('#tableHost').addEventListener('click', async e => {
@@ -545,6 +564,9 @@
           editPhotos.unshift(editPhotos.splice(i, 1)[0]);
           renderPhotoGrid();
         }
+      } else if ('reload' in d) {
+        await load();
+        render();
       }
     } finally {
       if (el.isConnected) el.disabled = false;

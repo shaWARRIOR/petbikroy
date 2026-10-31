@@ -180,6 +180,35 @@ const UI = (() => {
 
   /* -------------------------------------------------- favourites delegation */
 
+  /**
+   * A listing whose photo is gone (deleted from storage, a failed upload) still
+   * has to show *something* instead of a torn icon. When an <img> fails to load
+   * we swap in a neutral placeholder, so a removed or missing photo reads as
+   * "no photo" rather than a mistake.
+   */
+  const PLACEHOLDER =
+    'data:image/svg+xml;utf8,' +
+    ["<svg xmlns='http://www.w3.org/2000/svg' width='600' height='450' viewBox='0 0 600 450'>",
+      "<rect width='600' height='450' fill='#eef1f5'/>",
+      "<g fill='#d3d8e0'><rect x='255' y='176' width='90' height='68' rx='8'/>",
+      "<path d='M20 432 l150 -120 l122 102 l150 -112 l62 42 v46 h-484 z'/></g>",
+      "<text x='300' y='332' font-family='system-ui,sans-serif' font-size='24' fill='#c3c9d2' text-anchor='middle'>No photo</text>",
+      "</svg>".replace(/\s+/g, ''),
+    ].join('');
+
+  /** Falls back a broken image to the placeholder. Delegated, runs once. */
+  function bindImages(root = document) {
+    if (root.addEventListener._pbImages) return;
+    root.addEventListener._pbImages = true;
+    root.addEventListener('error', e => {
+      const img = e.target.closest && e.target.closest('img');
+      if (!img || img._pbFallback) return;
+      img._pbFallback = true;
+      img.addEventListener('error', () => {}, { once: true });
+      img.src = PLACEHOLDER;
+    });
+  }
+
   function bindFavorites(root = document) {
     root.addEventListener('click', e => {
       const btn = e.target.closest('[data-fav]');
@@ -527,6 +556,7 @@ const UI = (() => {
     });
 
     updateFavBadge();
+    bindImages(document);
     bindFavorites(document);
     updateMessageBadge();
 
@@ -554,6 +584,6 @@ const UI = (() => {
     ICONS, icon, $, $$, esc, qs, setQuery, debounce, initials, safeNext, LIMITS,
     toast, adCard, renderAds, emptyState, priceHtml,
     accountSlot, headerActions, drawerAccount, updateAccountUI, signOut,
-    bindFavorites, updateFavBadge, updateMessageBadge, header, footer, mountChrome, crumbs,
+    bindFavorites, updateFavBadge, updateMessageBadge, bindImages, header, footer, mountChrome, crumbs,
   };
 })();
