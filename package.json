@@ -18,6 +18,8 @@
     "db:drop:remote": "wrangler d1 execute petbikroy --remote --file=db/drop-all.sql",
     "db:schema:remote": "wrangler d1 execute petbikroy --remote --file=db/schema.sql",
     "db:seed:remote": "wrangler d1 execute petbikroy --remote --file=db/seed.sql",
+    "db:upgrade-moderation": "wrangler d1 execute petbikroy --local --file=db/upgrade-moderation.sql",
+    "db:upgrade-moderation:remote": "wrangler d1 execute petbikroy --remote --file=db/upgrade-moderation.sql",
     "test": "bash tests/run-tests.sh",
     "test:api": "bash tests/run-api-tests.sh",
     "test:admin": "node tests/admin-panel.test.mjs",
