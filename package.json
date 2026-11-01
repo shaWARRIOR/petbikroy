@@ -20,6 +20,8 @@
     "db:seed:remote": "wrangler d1 execute petbikroy --remote --file=db/seed.sql",
     "db:upgrade-moderation": "wrangler d1 execute petbikroy --local --file=db/upgrade-moderation.sql",
     "db:upgrade-moderation:remote": "wrangler d1 execute petbikroy --remote --file=db/upgrade-moderation.sql",
+    "db:upgrade-messaging": "wrangler d1 execute petbikroy --local --file=db/upgrade-messaging.sql",
+    "db:upgrade-messaging:remote": "wrangler d1 execute petbikroy --remote --file=db/upgrade-messaging.sql",
     "test": "bash tests/run-tests.sh",
     "test:api": "bash tests/run-api-tests.sh",
     "test:admin": "node tests/admin-panel.test.mjs",
