@@ -348,6 +348,81 @@ window.API = (() => {
       return { ad, status: 'active', offline: true };
     },
 
+    /**
+     * Promotes (or unpromotes) an ad the signed-in owner posted. This is the
+     * lightweight flag toggle used by "My ads" and the ad page, distinct from
+     * the full PUT edit.
+     */
+    async promoteAd(id) {
+      if (!this.available) {
+        const existing = PB.getAd(id);
+        if (!existing) throw new Error('That ad no longer exists.');
+        const merged = { ...existing, featured: !existing.featured };
+        PB.saveAd(merged);
+        return { ad: merged, offline: true };
+      }
+      const data = await this.request('POST', `/api/ads/${encodeURIComponent(id)}/promote`);
+      return { ad: data.ad, offline: false };
+    },
+
+    /* -------------------------------------------------- promotion (paid) */
+
+    /**
+     * The BDT cost of promoting for `durationDays`, using the live promotion
+     * pricing from /api/stats. Returns null when the site has no paid
+     * promotion enabled (or the browser is offline).
+     */
+    promotionCost(durationDays) {
+      if (!this.available || !this.stats || !this.stats.promotePrice) return null;
+      const days = Math.max(7, Math.trunc(Number(durationDays)) || 7);
+      const perDays = this.stats.promoteDays || 7;
+      const perPrice = this.stats.promotePrice;
+      return Math.ceil(days / perDays) * perPrice;
+    },
+
+    /** The signed-in member's own promotion history. */
+    async listPromotions() {
+      if (!this.available) return { promotions: [], offline: true };
+      const data = await this.request('GET', '/api/promotions');
+      return data;
+    },
+
+    /**
+     * Pays to promote one of the caller's active ads. Submits the payment
+     * method + reference and leaves the order for an admin to confirm.
+     */
+    async createPromotion({ adId, durationDays, paymentMethod, paymentRef }) {
+      if (!this.available) {
+        const err = new Error('Promotion needs the live site.');
+        err.status = 501;
+        throw err;
+      }
+      const data = await this.request('POST', '/api/promotions', {
+        adId,
+        durationDays,
+        paymentMethod,
+        paymentRef,
+      });
+      return data;
+    },
+
+    /** Seller cancels their own still-pending promotion. */
+    async cancelPromotion(id) {
+      if (!this.available) {
+        const err = new Error('Promotion needs the live site.');
+        err.status = 501;
+        throw err;
+      }
+      await this.request('PATCH', `/api/promotions/${encodeURIComponent(id)}/cancel`);
+    },
+
+    /** Whether the caller already has an active promotion on this ad. */
+    hasActivePromotion(promotions, adId) {
+      return (promotions || []).some(
+        p => p.adId === adId && p.status === 'approved',
+      );
+    },
+
     /** Edits an ad the caller owns. */
     async updateAd(id, payload) {
       if (!this.available) {

@@ -19,6 +19,8 @@ const SCHEMA = {
   listings_per_page: { type: 'int', min: 4, max: 48 },
   post_limit:        { type: 'int', min: 1, max: 100 },
   signup_limit:      { type: 'int', min: 1, max: 200 },
+  promote_price:     { type: 'int', min: 0, max: 100000 },
+  promote_days:      { type: 'int', min: 1, max: 365 },
 };
 
 export async function onRequestGet({ request, env }) {

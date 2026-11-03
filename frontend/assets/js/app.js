@@ -580,10 +580,55 @@ const UI = (() => {
       }).join('') + `</nav>`;
   }
 
+  /* -------------------------------------------------------------- modal */
+
+  /**
+   * A small, dependency-free dialog. Resolves with the value returned by
+   * `onSubmit(back)` (or `null` when cancelled). The form inside `bodyHtml`
+   * is submitted on Enter, and the primary button calls onSubmit.
+   */
+  function modal({ title, bodyHtml, confirmText = 'Continue', onSubmit, cancelText = 'Cancel' } = {}) {
+    return new Promise(resolve => {
+      const back = document.createElement('div');
+      back.className = 'modal-back';
+      back.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <div class="modal-head"><h2>${esc(title)}</h2></div>
+        <div class="modal-body">${bodyHtml}</div>
+        <div class="modal-foot">
+          <button class="btn btn-outline" data-x="cancel">${esc(cancelText)}</button>
+          <button class="btn" data-x="ok">${esc(confirmText)}</button>
+        </div>
+      </div>`;
+      const close = value => { back.remove(); resolve(value); };
+      const submit = () => {
+        const btn = back.querySelector('[data-x="ok"]');
+        btn.disabled = true;
+        Promise.resolve(onSubmit ? onSubmit(back) : true)
+          .then(v => close(v))
+          .catch(() => { btn.disabled = false; });
+      };
+      back.addEventListener('click', e => {
+        const btn = e.target.closest('[data-x]');
+        if (!btn) return;
+        if (btn.dataset.x === 'cancel') close(null);
+        else if (btn.dataset.x === 'ok') submit();
+      });
+      const onKey = e => { if (e.key === 'Enter') { submit(); } else if (e.key === 'Escape') close(null); };
+      const onBackdrop = e => { if (e.target === back) close(null); };
+      const form = back.querySelector('form');
+      if (form) form.addEventListener('submit', e => { e.preventDefault(); submit(); });
+      document.addEventListener('keydown', onKey);
+      back.addEventListener('click', onBackdrop);
+      document.body.appendChild(back);
+      const first = back.querySelector('input, textarea, select');
+      if (first) setTimeout(() => first.focus(), 0);
+    });
+  }
+
   return {
     ICONS, icon, $, $$, esc, qs, setQuery, debounce, initials, safeNext, LIMITS,
     toast, adCard, renderAds, emptyState, priceHtml,
     accountSlot, headerActions, drawerAccount, updateAccountUI, signOut,
-    bindFavorites, updateFavBadge, updateMessageBadge, bindImages, header, footer, mountChrome, crumbs,
+    bindFavorites, updateFavBadge, updateMessageBadge, bindImages, header, footer, mountChrome, crumbs, modal,
   };
 })();

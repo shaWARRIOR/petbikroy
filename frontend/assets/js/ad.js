@@ -95,6 +95,14 @@
       name: 'PetBikroy user', joined: new Date().toISOString(), verified: false, ads: 1,
     };
 
+    // Promotion state, owned by this closure so the label stays in sync.
+    // A seller can promote only their own *active* ad; that is what drops it
+    // into the "Promoted ads" section on the homepage. Promotion is paid: the
+    // seller pays, then an admin confirms before the ad actually features.
+    let promoted = !!ad.featured;
+    let promotePrice = 0;
+    const canPromote = mine && ad.status === 'active';
+
     // The API exposes the phone on the detail response only; the bundled
     // catalogue uses the older field name.
     const phone = ad.phone || ad.contactPhone || '';
@@ -207,6 +215,9 @@
         ${mine ? `<div class="card card-pad">
           <h4 style="font-size:14px">This is your ad</h4>
           <div style="display:grid;gap:8px">
+            ${canPromote ? `<button class="btn btn-accent btn-block" id="promoteMine">
+              ${icon('star', 16)} ${promoted ? 'Promoting — in Promoted ads' : `Promote this ad${promotePrice ? ` · ৳${promotePrice}` : ''}`}
+            </button>` : ''}
             <a class="btn btn-outline btn-block" href="my-ads.html">Manage in My ads</a>
             <button class="btn btn-danger btn-block" id="deleteMine">
               ${icon('trash', 16)} Delete ad</button>
@@ -374,6 +385,91 @@
           UI.toast(err.message || 'The ad could not be deleted.', 'err');
         }
       });
+
+      // Promote this owner's ad: opens a paid-promotion modal. The seller
+      // picks a duration and submits payment details, then an admin confirms.
+      const promoteBtn = $('#promoteMine');
+      if (promoteBtn) {
+        promoteBtn.addEventListener('click', () => openPromoteModal());
+      }
+
+      async function openPromoteModal() {
+        if (!API.available) {
+          UI.toast('Promotion needs the live site', 'err');
+          return;
+        }
+        promotePrice = API.promotionCost(7) || 0;
+        const perDays = (API.stats && API.stats.promoteDays) || 7;
+        const durations = [7, 14, 30].filter(d => d >= perDays);
+        let selected = durations.includes(perDays) ? perDays : durations[0];
+
+        const body = () => `<p class="small muted">Promote “${esc(ad.title)}” — it floats to the top of search and appears in the Promoted ads section.</p>
+          <div class="field">
+            <label for="promoDuration">Duration</label>
+            <select id="promoDuration">
+              ${durations.map(d => `<option value="${d}" ${d === selected ? 'selected' : ''}>${d} days · ৳${(API.promotionCost(d) || 0)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>Payment method</label>
+            <select id="promoMethod">
+              <option value="bkash">bKash (personal/business)</option>
+              <option value="nagad">Nagad</option>
+              <option value="upay">Upay</option>
+              <option value="bank">Bank transfer</option>
+              <option value="cash">Cash (collect on approval)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="promoRef">Payment reference number</label>
+            <input type="text" id="promoRef" placeholder="e.g. AK12345678" autocomplete="off">
+            <div class="hint">Paste the transaction/Money Send ID from your wallet.</div>
+          </div>
+          <div class="row gap-8" style="justify-content:flex-end;align-items:center">
+            <span class="small muted">Total</span>
+            <span class="price" id="promoTotal">৳${promotePrice}</span>
+          </div>
+        `;
+
+        const value = await UI.modal({
+          title: 'Promote this ad',
+          bodyHtml: body(),
+          confirmText: 'Pay and promote',
+          onSubmit: async (back) => {
+            const dur = Number(back.querySelector('#promoDuration')?.value || selected);
+            const paymentMethod = back.querySelector('#promoMethod').value;
+            const paymentRef = (back.querySelector('#promoRef')?.value || '').trim();
+            if (!paymentRef) {
+              UI.toast('Enter the payment reference number', 'err');
+              throw new Error('ref');
+            }
+            const total = API.promotionCost(dur);
+            const ok = window.confirm(
+              `Pay ৳${total} to promote “${esc(ad.title)}” for ${dur} days?\n\n` +
+              `Method: ${paymentMethod}. Reference: ${paymentRef}.\n\n` +
+              `An admin will confirm the payment and your ad will go live in Promoted ads.`,
+            );
+            if (!ok) return null;
+            const res = await API.createPromotion({
+              adId: ad.id, durationDays: dur,
+              paymentMethod, paymentRef,
+            });
+            UI.toast('Promotion submitted — awaiting admin confirmation', 'ok');
+            return true;
+          },
+        });
+
+        // Refresh the page state when the modal closes, so an already-approved
+        // promotion shows up as active on the next visit.
+        if (value !== null) await refreshAd();
+      }
+
+      async function refreshAd() {
+        try {
+          const data = await API.getAd(ad.id);
+          if (data) { ad = data.ad; promoted = !!ad.featured; render(); }
+        } catch { /* ignore */ }
+      }
     }
 
     /* ---------------------------------------------------------- message */

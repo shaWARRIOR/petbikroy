@@ -42,7 +42,7 @@ Everything runs on Cloudflare's free tier.
   live listings. Contact details stay on the individual ad where the seller
   chose to publish them.
 - **Report an ad** with a reason, which lands in the admin moderation queue.
-- **Promoted ads** float to the top of default results, as on real classifieds sites.
+- **Promoted ads** float to the top of default results, as on real classifieds sites. A seller promotes their own *active* ad from "My ads" or the ad page (`POST /api/ads/:id/promote`), which sets `featured` and drops it into the Promoted section; it can be unpromoted at any time.
 - **View counting** de-duplicated per visitor per day, so refreshing does not inflate it.
 - **Generated artwork.** Listings without photos get deterministic SVG artwork
   derived from the ad's own id, so a grid of them still reads as a grid of

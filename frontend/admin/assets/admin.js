@@ -118,6 +118,7 @@
     listings: { page: 1, status: 'all', q: '', cat: '', loc: '' },
     members: { page: 1, filter: 'all', q: '' },
     reports: { status: 'open' },
+    promotions: { page: 1, status: 'all', q: '' },
   };
 
   /** Category id -> name/emoji, loaded once from /api/taxonomy at boot. */
@@ -289,6 +290,7 @@
     listings:   { title: 'Listings',       render: viewListings },
     moderation: { title: 'Needs review',   render: viewModeration },
     members:    { title: 'Members',        render: viewMembers },
+    promotions: { title: 'Promotions',     render: viewPromotions },
     reports:    { title: 'Reports',        render: viewReports },
     settings:   { title: 'Settings',       render: viewSettings, adminOnly: true },
     team:       { title: 'Team',           render: viewTeam,     adminOnly: true },
@@ -752,7 +754,159 @@
     { key: 'auto_reject', label: 'Auto-reject clear spam', type: 'bool',
       hint: 'When auto-review is on: obvious fraud/spam is rejected at once. Off: it is held ' +
             'for a moderator instead of rejected.' },
+    { key: 'promote_price', label: 'Promotion price (BDT)', type: 'number',
+      hint: 'Cost to promote an ad for one period. Set 0 to disable paid promotion.', min: 0 },
+    { key: 'promote_days', label: 'Promotion period (days)', type: 'number',
+      hint: 'How long a promotion lasts; the price above covers one period.', min: 1 },
   ];
+
+  const PROMOTION_TABS = [
+    ['all', 'All'],
+    ['pending', 'Awaiting review'],
+    ['approved', 'Approved'],
+    ['cancelled', 'Cancelled'],
+    ['refunded', 'Refunded'],
+  ];
+
+  function promotionStatusBadge(status) {
+    const cls = {
+      pending: 'pending', approved: 'active',
+      cancelled: 'dismissed', refunded: 'rejected',
+    }[status] || 'pending';
+    return `<span class="badge ${cls}">${esc(status)}</span>`;
+  }
+
+  /* ========================================================== view: promotions */
+
+  async function viewPromotions(host) {
+    const f = state.promotions;
+    const qs = new URLSearchParams({ status: f.status, page: f.page, perPage: 25 });
+    if (f.q) qs.set('q', f.q);
+
+    const data = await api.get(`/api/admin/promotions?${qs}`);
+    const list = data.promotions;
+
+    // Approved promotions are the ones that actually went live; sum their
+    // amounts for the running total the admin cares about.
+    const approved = list.filter(p => p.status === 'approved');
+    const paidTotal = approved.reduce((s, p) => s + p.amount, 0);
+    const pendingTotal = list
+      .filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
+
+    host.innerHTML = `
+      <div class="card mb">
+        <div class="card-body">
+          <div class="bar">
+            <div class="grow">
+              <input type="search" id="pq" placeholder="Search ad title or payment reference…"
+                     value="${esc(f.q)}">
+            </div>
+            <button class="btn btn-outline" data-act="psearch">Search</button>
+            ${f.q ? '<button class="btn btn-ghost" data-act="pclear">Clear</button>' : ''}
+          </div>
+
+          <div class="bar" style="margin-top:12px">
+            ${PROMOTION_TABS.map(([v, label]) => `
+              <button class="btn btn-sm ${f.status === v ? '' : 'btn-outline'}"
+                      data-act="ptab" data-status="${v}">${esc(label)}</button>
+            `).join('')}
+            <span class="small muted" style="margin-left:auto">
+              ${plural(data.total, 'promotion')}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid cols-3 mb">
+        <div class="stat is-live">
+          <div class="label">Approved & live</div>
+          <div class="value mono-num">${group(approved.length)}</div>
+        </div>
+        <div class="stat is-info">
+          <div class="label">Approved value</div>
+          <div class="value mono-num">${money(paidTotal)}</div>
+        </div>
+        <div class="stat is-pending">
+          <div class="label">Awaiting review</div>
+          <div class="value mono-num">${group(list.filter(p => p.status === 'pending').length)}<span class="muted"> · ${money(pendingTotal)}</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body flush table-wrap">
+          ${list.length ? `
+          <table>
+            <thead>
+              <tr>
+                <th>Ad</th><th>Member</th><th>Duration</th><th class="right">Amount</th>
+                <th>Payment</th><th>Status</th><th class="right">When</th><th></th>
+              </tr>
+            </thead>
+            <tbody>${list.map(promotionRow).join('')}</tbody>
+          </table>` : `
+            <div class="empty">
+              <div class="big">💳</div>
+              <h3>No promotions yet</h3>
+              <p>Sellers promote ads from their own My ads page.</p>
+            </div>`}
+        </div>
+        ${data.pages > 1 ? `
+        <div class="pager">
+          <button class="btn btn-outline btn-sm" data-act="ppage" data-page="${data.page - 1}"
+                  ${data.page <= 1 ? 'disabled' : ''}>← Previous</button>
+          <span class="small muted">Page ${data.page} of ${data.pages}</span>
+          <button class="btn btn-outline btn-sm" data-act="ppage" data-page="${data.page + 1}"
+                  ${data.page >= data.pages ? 'disabled' : ''}>Next →</button>
+        </div>` : ''}
+      </div>
+    `;
+  }
+
+  function promotionRow(p) {
+    const adHref = `../ad.html?id=${encodeURIComponent(p.adId)}`;
+    const memberHref = p.userId
+      ? `../seller.html?id=${encodeURIComponent(p.userId)}`
+      : null;
+    const when = p.approvedAt || p.paidAt || p.createdAt;
+    const expires = p.expiresAt ? ` · ends ${esc(ago(p.expiresAt))}` : '';
+
+    return `
+      <tr>
+        <td>
+          <div style="min-width:160px">
+            <a href="${adHref}" target="_blank" rel="noopener">${esc(p.adTitle || '(deleted ad)')}</a>
+            <div class="small muted">${statusBadge(p.adStatus || '')}
+              ${p.active ? '<span class="badge active">live</span>' : ''}
+            </div>
+          </div>
+        </td>
+        <td class="small">${memberHref
+          ? `<a href="${memberHref}">${esc(p.ownerName || 'member')}</a>`
+          : esc(p.ownerName || 'member')}</td>
+        <td class="small">${p.durationDays}d${expires}</td>
+        <td class="right mono-num">${money(p.amount)}</td>
+        <td class="small">${esc(paymentLabel(p.paymentMethod))}${p.paymentRef
+          ? ` · <span class="mono">${esc(p.paymentRef)}</span>` : ''}</td>
+        <td>${promotionStatusBadge(p.status)}</td>
+        <td class="right small muted nowrap">${esc(ago(p.createdAt))}</td>
+        <td class="actions">
+          ${p.status === 'pending'
+            ? `<button class="btn btn-sm" data-act="papprove" data-id="${esc(p.id)}">Approve</button>`
+            : ''}
+          ${p.status === 'pending'
+            ? `<button class="btn btn-ghost btn-sm" data-act="pcancel" data-id="${esc(p.id)}">Cancel</button>`
+            : ''}
+          ${p.status === 'approved' && !p.active
+            ? `<button class="btn btn-ghost btn-sm" data-act="prrefund" data-id="${esc(p.id)}">Refund</button>`
+            : ''}
+          <a class="btn btn-outline btn-sm" href="${adHref}" target="_blank" rel="noopener">Open</a>
+        </td>
+      </tr>`;
+  }
+
+  const paymentLabel = m => ({
+    bkash: 'bKash', nagad: 'Nagad', upay: 'Upay', bank: 'Bank', cash: 'Cash',
+  })[m] || m;
 
   async function viewSettings(host) {
     const { settings, defaults } = await api.get('/api/admin/settings');
@@ -777,7 +931,7 @@
                 <label for="set-${esc(f.key)}">${esc(f.label)}</label>
                 <input type="${esc(f.type)}" id="set-${esc(f.key)}" name="${esc(f.key)}"
                        value="${esc(value)}"
-                       ${f.type === 'number' ? 'min="1" max="999"' : ''}>
+                       ${f.type === 'number' ? `min="${f.min ?? 1}" max="${f.max ?? 999}"` : ''}>
                 <div class="hint">${esc(f.hint)}</div>
               </div>`;
           }).join('')}
@@ -1136,6 +1290,28 @@
 
   /* ================================================== action: ad detail panel */
 
+  /* ---- promotions actions ---- */
+
+  async function patchPromotion(id, action) {
+    const messages = {
+      approve: 'Promotion approved — the ad is now live in Promoted ads',
+      cancel: 'Promotion cancelled',
+      refund: 'Promotion refunded',
+    }[action];
+
+    if (action === 'cancel' || action === 'refund') {
+      const verb = action === 'cancel' ? 'Cancel' : 'Refund';
+      const warn = action === 'cancel'
+        ? 'Void this pending order? The seller gets no promotion.'
+        : 'Refund this promotion and remove the ad from Promoted ads?';
+      if (!(await confirmDialog(`${verb} promotion`, warn, verb, true))) return false;
+    }
+
+    await api.patch(`/api/admin/promotions/${encodeURIComponent(id)}`, { action });
+    toast(messages);
+    return true;
+  }
+
   async function openAdPanel(id) {
     const { ad } = await api.get(`/api/admin/ads/${encodeURIComponent(id)}`);
 
@@ -1418,6 +1594,43 @@
 
         case 'openmember':
           await openMemberPanel(id);
+          break;
+
+        /* ---- promotions ---- */
+        case 'ptab':
+          state.promotions.status = el.dataset.status;
+          state.promotions.page = 1;
+          route();
+          break;
+
+        case 'ppage': {
+          const page = Number(el.dataset.page);
+          if (page > 0) { state.promotions.page = page; route(); }
+          break;
+        }
+
+        case 'psearch':
+          state.promotions.q = $('#pq').value.trim();
+          state.promotions.page = 1;
+          route();
+          break;
+
+        case 'pclear':
+          state.promotions.q = '';
+          state.promotions.page = 1;
+          route();
+          break;
+
+        case 'papprove':
+          if (await patchPromotion(id, 'approve')) { route(); }
+          break;
+
+        case 'pcancel':
+          if (await patchPromotion(id, 'cancel')) { route(); }
+          break;
+
+        case 'prrefund':
+          if (await patchPromotion(id, 'refund')) { route(); }
           break;
 
         /* ---- reports ---- */

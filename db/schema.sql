@@ -212,6 +212,46 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TEXT NOT NULL
 );
 
+-- -------------------------------------------------- paid promotion --
+
+-- A seller pays to feature their own ad. One row per promotion order: the
+-- seller picks a duration and submits payment details, which an admin then
+-- approves (going live) or cancels/refunds. Approving sets the ad's
+-- `featured` flag, so the paid flow is the seller-facing path to the same
+-- "Promoted ads" section admins reach through moderation.
+--
+-- status: pending | approved | cancelled | refunded
+--   pending    order created, payment submitted, awaiting admin review
+--   approved   admin confirmed — ad is promoted until expires_at
+--   cancelled  cancelled before approval (no money changes hands)
+--   refunded   admin refunded an approved order
+CREATE TABLE IF NOT EXISTS promotions (
+  id             TEXT PRIMARY KEY,
+  -- The ad being promoted. Deleting the ad removes its promotion history.
+  ad_id          TEXT NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
+  -- The paying member. Deleting the account removes their orders.
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  -- Cost in the site's minor unit (BDT paise-free integers). duration_days
+  -- times the configured per-period price.
+  amount         INTEGER NOT NULL DEFAULT 0,
+  duration_days  INTEGER NOT NULL DEFAULT 7,
+  status         TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending','approved','cancelled','refunded')),
+  -- Payment method + the reference/transaction id the seller pasted from
+  -- their wallet, so the admin can reconcile it by hand.
+  payment_method TEXT NOT NULL DEFAULT ''
+                   CHECK (payment_method IN ('','bkash','nagad','upay','bank','cash')),
+  payment_ref    TEXT NOT NULL DEFAULT '',
+  created_at     TEXT NOT NULL,
+  paid_at        TEXT NOT NULL DEFAULT '',
+  approved_at    TEXT NOT NULL DEFAULT '',
+  expires_at     TEXT NOT NULL DEFAULT '',
+  updated_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_promotions_ad      ON promotions(ad_id);
+CREATE INDEX IF NOT EXISTS idx_promotions_user    ON promotions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_promotions_status  ON promotions(status, created_at DESC);
+
 -- ----------------------------------------------------- messaging --
 
 -- One conversation links a buyer and a seller about a single ad (or, when

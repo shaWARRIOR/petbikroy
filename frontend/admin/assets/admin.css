@@ -66,13 +66,21 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-
 
 .login-screen {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
   padding: 24px;
   background:
     radial-gradient(900px 500px at 15% -10%, #e8f6ee 0%, transparent 60%),
     radial-gradient(700px 450px at 110% 110%, #fff1e5 0%, transparent 55%),
     var(--bg);
+}
+/*
+  The visibility toggle (showApp/showLogin) drives the `hidden` attribute.
+  An author `display` rule would outrank the UA `[hidden] { display: none }`
+  rule and keep the screen showing even when hidden — so gate the layout on
+  `:not([hidden])` and let the attribute own the show/hide decision.
+*/
+.login-screen:not([hidden]) {
+  display: grid;
+  place-items: center;
 }
 
 .login-card {
@@ -94,7 +102,8 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-
 
 /* -------------------------------------------------------------- app shell -- */
 
-.admin { display: flex; min-height: 100vh; }
+.admin { min-height: 100vh; }
+.admin:not([hidden]) { display: flex; }
 
 .sidebar {
   width: var(--sidebar-w);

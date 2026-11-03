@@ -98,6 +98,10 @@ export const DEFAULT_SETTINGS = {
   posting_enabled: '1',
   post_limit: '10',           // ads one visitor may publish per hour
   signup_limit: '10',         // accounts one address may create per hour
+  // Paid promotion: `promote_price` (BDT) for every `promote_days` window.
+  // A seller's cost is ceil(duration / promote_days) * promote_price.
+  promote_price: '100',        // BDT charged per promotion period
+  promote_days: '7',           // length of one promotion period, in days
   contact_email: 'hello@petbikroy.test',
 };
 
@@ -131,6 +135,29 @@ export async function setSetting(env, key, value) {
 }
 
 export const isOn = v => v === '1' || v === 'true' || v === true;
+
+/**
+ * Promotion cost for a requested duration, from the live settings.
+ * Rounds up to whole periods so a partial week is billed as a full one.
+ */
+export async function promotionCost(env, durationDays) {
+  const days = Math.max(1, Math.trunc(Number(durationDays)) || 1);
+  const s = await getSettings(env);
+  const perDays = Math.max(1, Number(s.promote_days) || 7);
+  const perPrice = Math.max(0, Number(s.promote_price) || 0);
+  const periods = Math.ceil(days / perDays);
+  return { amount: periods * perPrice, days, periods };
+}
+
+/**
+ * Whether an approved promotion is still running. `expires_at` is empty for
+ * promotions the admin created without an end date, which stay active.
+ */
+export function promotionStillActive(row) {
+  if (!row || row.status !== 'approved') return false;
+  if (!row.expires_at) return true;
+  return new Date(row.expires_at).getTime() >= Date.now();
+}
 
 /* ---------------------------------------------------------- rate limiting */
 

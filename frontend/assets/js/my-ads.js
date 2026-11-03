@@ -29,6 +29,7 @@
   let loadError = null;    // set when the list could not be fetched
   let signedOut = false;
   let offline = false;
+  let promotePrice = 0;   // last-quoted promotion price, for the button label
 
   const STATUS_LABEL = {
     active: 'Live', sold: 'Sold', pending: 'In review', rejected: 'Rejected',
@@ -381,7 +382,10 @@
     return `${notice}<tr>
       <td>
         <a class="tbl-ad" href="ad.html?id=${encodeURIComponent(id)}">
-          <img src="${PB.adCover(ad)}" alt="">
+          <span class="thumb" style="position:relative;display:inline-block">
+            <img src="${PB.adCover(ad)}" alt="">
+            ${ad.featured ? '<span class="thumb-star" title="Promoted ad">⭐</span>' : ''}
+          </span>
           <span class="t">${esc(ad.title)}</span>
         </a>
       </td>
@@ -396,6 +400,11 @@
         <div class="tiny muted">${esc(PB.timeAgo(ad.created))}</div></td>
       <td>
         <div class="row gap-8" style="justify-content:flex-end;flex-wrap:wrap">
+          ${ad.status === 'active'
+            ? `<button class="btn ${ad.featured ? 'btn-accent' : 'btn-outline'} btn-sm" data-promote="${esc(id)}">
+                ${icon('star', 14)} ${ad.featured ? 'Unpromote' : `Promote · ৳${promotePriceFor(ad)}`}
+              </button>`
+            : '<span class="tiny muted" style="align-self:center">Promote to reach more buyers</span>'}
           <button class="btn btn-outline btn-sm" data-toggle="${esc(id)}"${local ? ' disabled title="Needs the live site"' : ''}>
             ${ad.status === 'sold' ? 'Mark available' : 'Mark sold'}
           </button>
@@ -442,6 +451,87 @@
     // whatever status the server reports rather than the one we asked for.
     await refresh();
     render();
+  }
+
+  /** The promotion price for the default period, or a blank fallback. */
+  function promotePriceFor() {
+    try { return API.promotionCost(7) || ''; } catch { return ''; }
+  }
+
+  /** Opens the paid-promotion modal for this ad. */
+  async function promote(id) {
+    const ad = find(id);
+    if (!ad || ad.status !== 'active') return;
+    if (!API.available) {
+      UI.toast('Promotion needs the live site', 'err');
+      return;
+    }
+
+    promotePrice = API.promotionCost(7) || 0;
+    const perDays = (API.stats && API.stats.promoteDays) || 7;
+    const durations = [7, 14, 30].filter(d => d >= perDays);
+    let selected = durations.includes(perDays) ? perDays : durations[0];
+
+    const body = () => `<p class="small muted">Promote “${esc(ad.title)}” — it floats to the top of search and appears in the Promoted ads section.</p>
+      <div class="field">
+        <label for="promoDuration">Duration</label>
+        <select id="promoDuration">
+          ${durations.map(d => `<option value="${d}" ${d === selected ? 'selected' : ''}>${d} days · ৳${(API.promotionCost(d) || 0)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Payment method</label>
+        <select id="promoMethod">
+          <option value="bkash">bKash (personal/business)</option>
+          <option value="nagad">Nagad</option>
+          <option value="upay">Upay</option>
+          <option value="bank">Bank transfer</option>
+          <option value="cash">Cash (collect on approval)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="promoRef">Payment reference number</label>
+        <input type="text" id="promoRef" placeholder="e.g. AK12345678" autocomplete="off">
+        <div class="hint">Paste the transaction/Money Send ID from your wallet.</div>
+      </div>
+      <div class="row gap-8" style="justify-content:flex-end;align-items:center">
+        <span class="small muted">Total</span>
+        <span class="price" id="promoTotal">৳${promotePrice}</span>
+      </div>
+    `;
+
+    const ok = await UI.modal({
+      title: 'Promote this ad',
+      bodyHtml: body(),
+      confirmText: 'Pay and promote',
+      onSubmit: async (back) => {
+        const dur = Number(back.querySelector('#promoDuration')?.value || selected);
+        const paymentMethod = back.querySelector('#promoMethod').value;
+        const paymentRef = (back.querySelector('#promoRef')?.value || '').trim();
+        if (!paymentRef) {
+          UI.toast('Enter the payment reference number', 'err');
+          throw new Error('ref');
+        }
+        const total = API.promotionCost(dur);
+        const confirmed = window.confirm(
+          `Pay ৳${total} to promote “${esc(ad.title)}” for ${dur} days?\n\n` +
+          `Method: ${paymentMethod}. Reference: ${paymentRef}.\n\n` +
+          `An admin will confirm the payment and your ad will go live in Promoted ads.`,
+        );
+        if (!confirmed) return null;
+        await API.createPromotion({
+          adId: ad.id, durationDays: dur,
+          paymentMethod, paymentRef,
+        });
+        UI.toast('Promotion submitted — awaiting admin confirmation', 'ok');
+        return true;
+      },
+    });
+
+    if (ok !== null) {
+      await refresh();
+      render();
+    }
   }
 
   async function saveEdit(id) {
@@ -526,8 +616,9 @@
   /* ----------------------------------------------------------------- events */
 
   const ACTIONS = [
-    '[data-toggle]', '[data-edit-btn]', '[data-del]', '[data-save]', '[data-cancel]',
-    '[data-add-photo]', '[data-photo-rm]', '[data-photo-cover]', '[data-reload]',
+    '[data-toggle]', '[data-promote]', '[data-edit-btn]', '[data-del]',
+    '[data-save]', '[data-cancel]', '[data-add-photo]', '[data-photo-rm]',
+    '[data-photo-cover]', '[data-reload]',
   ].join(',');
 
   $('#tableHost').addEventListener('click', async e => {
@@ -539,6 +630,7 @@
 
     try {
       if (d.toggle) await toggleStatus(d.toggle);
+      else if (d.promote) await promote(d.promote);
       else if (d.editBtn) {
         editing = editing === d.editBtn ? null : d.editBtn;
         // Opening an editor always starts from what the server has, never
